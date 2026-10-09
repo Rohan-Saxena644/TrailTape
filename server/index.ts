@@ -5,7 +5,7 @@ import { configuration } from "./providers.js";
 const production =
   process.env.NODE_ENV === "production" ||
   /\/dist\/server\/index\.js$/.test(import.meta.url);
-if (production) process.env.NODE_ENV = "production";
+process.env.NODE_ENV = production ? "production" : "development";
 // Next ships a CommonJS server factory; require keeps NodeNext typing honest.
 const next = createRequire(import.meta.url)(
   "next",

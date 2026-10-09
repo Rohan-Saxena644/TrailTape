@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit",
     "test": "tsx --test tests/*.test.ts",
     "test:browser": "node scripts/browser-check.mjs",
+    "test:dev-proxy": "node scripts/dev-proxy-check.mjs",
     "evaluate": "tsx scripts/evaluate.ts",
     "format": "prettier --write app server shared scripts tests docs README.md package.json next.config.ts tsconfig.json tsconfig.server.json render.yaml"
   },

@@ -61,6 +61,22 @@ Open **http://localhost:3000**. Next.js runs on 3000; Express on 3001. The front
 proxies `/api` to Express. Change `API_PORT` in `.env` if needed. In PowerShell
 with script restrictions, use `npm.cmd` instead of `npm`.
 
+The development API permits the exact `DEV_FRONTEND_ORIGIN` (default
+`http://localhost:3000`), including through Next's Host-rewriting proxy. If you
+use another frontend hostname or port, set that exact origin and restart both
+servers. No wildcard CORS is enabled. Development permits external-link
+navigation to read-only status/health endpoints; cross-site mutations and
+unrelated explicit origins remain blocked. Production allows only its own origin
+and retains cross-site Fetch Metadata rejection. See the
+[proxy regression record](docs/dev-proxy.md) for captured headers and results.
+
+`npm run test:dev-proxy` verifies the running development stack with the actual
+live `.env`, an unrelated-origin rejection, an external-link status navigation,
+and a browser mission request. It may spend inference credits, and continues
+to a synthetic journal only if missions succeed. Set `BROWSER_EXECUTABLE` as
+described below if using an installed browser. It reports request routing
+separately from actual model inference.
+
 ```sh
 npm run typecheck
 npm test
@@ -244,8 +260,11 @@ commits in this README as required by the challenge.
 
 ## Current limitations
 
-Live Gemma and Whisper have **not been tested with real credentials**. API docs
-verification confirms the intended integration format, not account-level access.
+The follow-up development proxy check attempted live Gemma missions using the
+locally configured `google/gemma-3-27b-it:free`. Routing succeeded, but the
+provider adapter returned HTTP 502; no real Gemma output was obtained. Whisper
+has not been tested with real credentials. API docs verification confirms the
+intended integration format, not account-level access.
 No outdoor test, real-model accuracy/latency measurement, deployment, or submission
 has been completed. Automatic grounding protects exact recorded notes but doesn't
 guarantee prose is semantically supported. History is device/browser-specific;

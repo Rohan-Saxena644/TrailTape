@@ -5,6 +5,7 @@ import { rateLimit } from "express-rate-limit";
 import { fileTypeFromBuffer } from "file-type";
 import { z } from "zod";
 import { preferencesSchema, notesSchema } from "../shared/schema.js";
+import { browserAccess, type BrowserAccessOptions } from "./browser-access.js";
 import {
   GemmaAdapter,
   WhisperAdapter,
@@ -12,7 +13,14 @@ import {
   type Config,
 } from "./providers.js";
 const allowed = new Set(["wav", "mp3", "m4a", "mp4", "ogg", "webm", "flac"]);
-export function createApp(config: Config, fetcher: typeof fetch = fetch) {
+export function createApp(
+  config: Config,
+  fetcher: typeof fetch = fetch,
+  access: BrowserAccessOptions = {
+    development: process.env.NODE_ENV === "development",
+    frontendOrigin: process.env.DEV_FRONTEND_ORIGIN || "http://localhost:3000",
+  },
+) {
   const app = express();
   app.disable("x-powered-by");
   app.set("trust proxy", 1);
@@ -28,23 +36,7 @@ export function createApp(config: Config, fetcher: typeof fetch = fetch) {
     }),
   );
   app.use("/api", express.json({ limit: "64kb" }));
-  // Browser requests must originate from this app; no cross-origin API access.
-  app.use("/api", (req, res, next) => {
-    const origin = req.get("origin");
-    if (
-      origin &&
-      origin !== `${req.protocol}://${req.get("host")}` &&
-      !(!process.env.NODE_ENV || process.env.NODE_ENV === "development")
-    ) {
-      res.status(403).json({ error: "Cross-origin requests are not allowed." });
-      return;
-    }
-    if (req.get("sec-fetch-site") === "cross-site") {
-      res.status(403).json({ error: "Cross-site requests are not allowed." });
-      return;
-    }
-    next();
-  });
+  app.use("/api", browserAccess(access));
   const gemma = new GemmaAdapter(config, fetcher);
   const whisper = new WhisperAdapter(config, fetcher);
   app.get("/api/status", (_req, res) =>
@@ -136,20 +128,16 @@ export function createApp(config: Config, fetcher: typeof fetch = fetch) {
       _next: express.NextFunction,
     ) => {
       if (error instanceof z.ZodError) {
-        res
-          .status(400)
-          .json({
-            error:
-              "Check your input: 1–20 unique notes, each under 2,000 characters, and valid walk preferences are required.",
-          });
+        res.status(400).json({
+          error:
+            "Check your input: 1–20 unique notes, each under 2,000 characters, and valid walk preferences are required.",
+        });
         return;
       }
       if (error instanceof multer.MulterError) {
-        res
-          .status(400)
-          .json({
-            error: "Upload one supported audio recording, up to 10 MB.",
-          });
+        res.status(400).json({
+          error: "Upload one supported audio recording, up to 10 MB.",
+        });
         return;
       }
       if (error instanceof ServiceError) {
@@ -167,12 +155,10 @@ export function createApp(config: Config, fetcher: typeof fetch = fetch) {
         return;
       }
       // Never expose/log provider payloads, keys, private notes, or audio.
-      res
-        .status(500)
-        .json({
-          error:
-            "Something went wrong. Your notes are still available; please retry.",
-        });
+      res.status(500).json({
+        error:
+          "Something went wrong. Your notes are still available; please retry.",
+      });
     },
   );
   return app;
