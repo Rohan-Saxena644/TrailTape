@@ -120,6 +120,8 @@ source checks. Prose surrounding JSON, malformed syntax, and truncated responses
 are rejected without automatic repair. Errors identify the mission-card or
 journal stage correctly.
 
+See the [Google proxy and live inference verification](docs/google-proxy-verification.md)
+for the Google endpoint configuration, timeout correction, and successful synthetic browser run.
 See the [JSON reliability verification record](docs/json-output.md) for the
 formatting regressions and the live endpoint's separate rate-limit failure.
 
@@ -280,7 +282,10 @@ The follow-up development proxy check attempted live Gemma missions using the
 locally configured `google/gemma-3-27b-it:free`. Routing succeeded, but the
 provider adapter returned HTTP 502; no real Gemma output was obtained.
 The later JSON-mode check used `google/gemma-4-26b-a4b-it:free` and received HTTP
-429 both before and after the formatting fix, so live inference is still unverified.
+429 both before and after the formatting fix. A subsequent Google Gemma 4 check
+successfully generated missions and a grounded journal through the development
+proxy in a real browser; other Google attempts timed out or returned HTTP 500.
+See [the verification record](docs/google-proxy-verification.md).
 Whisper has not been tested with real credentials. API docs verification confirms the
 intended integration format, not account-level access.
 No outdoor test, real-model accuracy/latency measurement, deployment, or submission

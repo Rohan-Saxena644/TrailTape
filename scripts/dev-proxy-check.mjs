@@ -74,11 +74,33 @@ try {
   assert.equal(fetched.http, 200);
   assert.equal(fetched.body.model, status.model);
   await page.getByRole("checkbox").check();
+  // Reproduce Next's plain-text proxy failure and verify the actual UI recovery.
+  await page.route("**/api/missions", (route) =>
+    route.fulfill({
+      status: 500,
+      contentType: "text/plain",
+      body: "Internal Server Error",
+    }),
+  );
+  await page.getByRole("button", { name: "Make my mission card" }).click();
+  await page.locator(".alert").waitFor();
+  assert.match(
+    await page.locator(".alert").innerText(),
+    /API connection failed/,
+  );
+  assert.doesNotMatch(
+    await page.locator(".alert").innerText(),
+    /Unexpected token/,
+  );
+  await page.unroute("**/api/missions");
+  console.log(
+    JSON.stringify({ check: "plain-text-proxy-error-ui", success: true }),
+  );
   const missionResponse = page.waitForResponse(
     (r) =>
       r.url() === `${base}/api/missions` && r.request().method() === "POST",
   );
-  await page.getByRole("button", { name: "Make my mission card" }).click();
+  await page.getByRole("button", { name: "Retry", exact: true }).click();
   const missions = await missionResponse;
   const result = await missions.json();
   assert.notEqual(missions.status(), 403);

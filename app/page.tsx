@@ -9,6 +9,7 @@ import {
   type Note,
 } from "../shared/schema";
 import { journalMarkdown, missionMarkdown } from "../shared/export";
+import { readApiResponse } from "../shared/api-response";
 const STORAGE = "trailtape.walks.v1";
 type Status = {
   mode: "live" | "demo";
@@ -40,10 +41,7 @@ async function request<T>(path: string, body?: unknown): Promise<T> {
       body instanceof FormData ? body : body ? JSON.stringify(body) : undefined,
     signal: AbortSignal.timeout(55000),
   });
-  const data = await response.json();
-  if (!response.ok)
-    throw new Error(data.error || "Request failed. Please retry.");
-  return data;
+  return readApiResponse<T>(response);
 }
 export default function Home() {
   const [view, setView] = useState<View>("prepare");

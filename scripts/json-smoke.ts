@@ -11,7 +11,19 @@ const config = configuration();
 if (config.mode !== "live")
   throw new Error("This check requires AI_MODE=live.");
 const diagnosticFetch: typeof fetch = async (input, init) => {
-  const response = await fetch(input, init);
+  let response: Response;
+  try {
+    response = await fetch(input, init);
+  } catch (error) {
+    const failure = error as { name?: string; cause?: { code?: string } };
+    console.log(
+      JSON.stringify({
+        transportError: failure.name,
+        code: failure.cause?.code,
+      }),
+    );
+    throw error;
+  }
   const request = JSON.parse(init!.body as string);
   const metadata: Record<string, unknown> = {
     http: response.status,

@@ -27,6 +27,27 @@ const missions = {
 const wrap = (content: string, finish_reason = "stop") =>
   Response.json({ choices: [{ message: { content }, finish_reason }] });
 
+test("Google Gemma 4 disables long thinking without assuming JSON-mode support", async () => {
+  const adapter = new GemmaAdapter(
+    {
+      ...config,
+      gemmaBase: "https://generativelanguage.googleapis.com/v1beta/openai",
+      gemmaModel: "gemma-4-26b-a4b-it",
+      gemmaOutputFormat: "prompt",
+    },
+    async (_url, init) => {
+      const body = JSON.parse(init!.body as string);
+      assert.deepEqual(body.extra_body, {
+        google: { thinking_config: { thinking_level: "minimal" } },
+      });
+      assert.equal(body.response_format, undefined);
+      assert.equal(body.provider, undefined);
+      return wrap(JSON.stringify(missions));
+    },
+  );
+  assert.equal((await adapter.missions(preferences)).length, 3);
+});
+
 test("parses bare JSON and a single complete JSON fence without changing note text", () => {
   const value = { text: 'Maybe?\nA literal ``` inside a note and a "quote".' };
   const json = JSON.stringify(value);

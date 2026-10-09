@@ -117,6 +117,9 @@ export class GemmaAdapter {
     const base = new URL(c.gemmaBase.replace(/\/$/, ""));
     const openRouter = base.href === "https://openrouter.ai/api/v1";
     const deepInfra = base.href === "https://api.deepinfra.com/v1/openai";
+    const googleGemma4 =
+      base.href === "https://generativelanguage.googleapis.com/v1beta/openai" &&
+      /^gemma-4-(?:26b-a4b|31b)-it$/i.test(c.gemmaModel);
     // JSON-object support is documented for these Gemma models/endpoints.
     // Unknown compatible endpoints stay prompt-only unless explicitly enabled.
     const documentedModel =
@@ -141,6 +144,15 @@ export class GemmaAdapter {
           model: c.gemmaModel,
           temperature: 0.2,
           max_tokens: 5000,
+          // Gemma 4's Google API supports high/minimal thinking. These short
+          // structured tasks do not need a long reasoning pass before output.
+          ...(googleGemma4
+            ? {
+                extra_body: {
+                  google: { thinking_config: { thinking_level: "minimal" } },
+                },
+              }
+            : {}),
           ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
           ...(jsonMode && openRouter
             ? { provider: { require_parameters: true } }
