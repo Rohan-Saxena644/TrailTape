@@ -2,308 +2,245 @@
 
 **Three pocket missions. One small walk. A journal in your own words.**
 
-TrailTape helps you spend the walk looking around, then save what you noticed.
-Choose 10, 20, or 30 minutes, a general setting, and interests. Hosted Gemma
-generates three short missions with conditional alternatives; print/save the
-card and put the phone away. Afterward, write observations or import a short
-recording, correct the transcript, generate a source-linked journal, and export
-Markdown. History is saved in this browser, without a database or account.
+TrailTape gives you a small reason to step outside without turning the walk into
+another screen-heavy activity. Choose a duration, setting, and interests; Gemma
+prepares three short missions. Print or save the card, put the screen away, and
+notice what's around you. You don't have to complete every mission.
 
-Built for [Week 1: Touch Grass](https://dev.to/challenges/hacktoberfest-week1-2026-10-05).
-The official [rules](https://dev.to/page/hacktoberfest-week1-2026-10-05-contest-rules)
-close entries on 11 October 2026 at 11:59 PM PDT, which is **12 October at
-12:29 PM IST**. Target submission day: Sunday 11 October IST. No eligibility,
-outdoor-test, live-inference, or deployment claims are implied by this code.
+Afterward, optionally bring back typed observations or a voice note. Listen to
+your recording, review and correct the transcript, then save it. TrailTape builds
+a journal with exact original-note excerpts, source links, and a suggestion for
+your next walk. History and unfinished text drafts stay in this browser; no
+account or database is required.
+
+[Repository](https://github.com/Rohan-Saxena644/TrailTape) ·
+[Journal screenshot](artifacts/voice-journal-desktop.png) ·
+[Mobile voice-note screenshot](artifacts/voice-notes-mobile.png)
+
+![TrailTape's preparation screen in sample mode](artifacts/desktop-prepare.png)
+
+These screenshots show the implemented interface with synthetic/sample inputs;
+they are not evidence of an outdoor walk. Built for
+[Hacktoberfest Week 1: Touch Grass](https://dev.to/challenges/hacktoberfest-week1-2026-10-05).
 
 ## Run locally
 
-Use Node.js 22.16+ and npm. Dependencies are locked in `package-lock.json`.
+Use **Node.js 22.16+** and npm.
 
 ```sh
+git clone https://github.com/Rohan-Saxena644/TrailTape.git
+cd TrailTape
 npm ci
 ```
 
-Copy `.env.example` to `.env` in the repository root. On Windows PowerShell:
+Copy `.env.example` to `.env` once, then edit it locally. Keep an existing
+configured `.env` rather than overwriting it.
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-On macOS/Linux: `cp .env.example .env`. Edit `.env` in your local editor.
-**Do not paste keys into a chat, screenshot, submission, or Git commit.** Real
-`.env` files are ignored. No environment variable is exposed as `NEXT_PUBLIC_*`.
-
-For the full text workflow, create an [OpenRouter key](https://openrouter.ai/settings/keys),
-check account credits and model access, and set:
+On macOS/Linux, use `cp .env.example .env`. The example file still contains
+OpenRouter defaults: **replace its Gemma settings with all the Google settings
+below before using a Google AI Studio key.**
 
 ```dotenv
 AI_MODE=live
-GEMMA_API_KEY=your_local_openrouter_key
-GEMMA_BASE_URL=https://openrouter.ai/api/v1
-GEMMA_MODEL=google/gemma-3-27b-it
+GEMMA_API_KEY=your_google_ai_studio_key
+GEMMA_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
+GEMMA_MODEL=gemma-4-26b-a4b-it
+GEMMA_OUTPUT_FORMAT=prompt
+
+TRANSCRIPTION_API_KEY=
+TRANSCRIPTION_BASE_URL=https://api.groq.com/openai/v1
+TRANSCRIPTION_MODEL=whisper-large-v3-turbo
+
+API_PORT=3001
+DEV_FRONTEND_ORIGIN=http://localhost:3000
 ```
 
-For optional transcription, create a key in the [Groq console](https://console.groq.com/keys)
-and put it in `TRANSCRIPTION_API_KEY`. Keep the other transcription defaults.
-A missing audio key disables audio import without blocking typed notes.
-
-To try the interface without credentials, explicitly set `AI_MODE=demo`.
-Demo cards are fixed and journals deterministically quote your notes. Sample
-mode is prominently labeled, stored with each walk, and included in exports.
-It never pretends to call Gemma or silently replaces a failed live response.
-Audio is unavailable in demo mode.
+Get the text-generation key from [Google AI Studio](https://aistudio.google.com/apikey).
+Audio uses a **separate** [Groq key](https://console.groq.com/keys). Leave
+`TRANSCRIPTION_API_KEY` empty if you only want typed notes. Keys stay on the
+backend; `.env` is ignored by Git. Never include real keys in screenshots or commits.
 
 ```sh
 npm run dev
 ```
 
-Open **http://localhost:3000**. Next.js runs on 3000; Express on 3001. The frontend
-proxies `/api` to Express. Change `API_PORT` in `.env` if needed. In PowerShell
-with script restrictions, use `npm.cmd` instead of `npm`.
+Open **http://localhost:3000**. Next.js serves the frontend on 3000 and proxies
+`/api` to Express on 3001. Restart both after changing `.env`. In PowerShell,
+use `npm.cmd` if script policy blocks `npm`.
 
-The development API permits the exact `DEV_FRONTEND_ORIGIN` (default
-`http://localhost:3000`), including through Next's Host-rewriting proxy. If you
-use another frontend hostname or port, set that exact origin and restart both
-servers. No wildcard CORS is enabled. Development permits external-link
-navigation to read-only status/health endpoints; cross-site mutations and
-unrelated explicit origins remain blocked. Production allows only its own origin
-and retains cross-site Fetch Metadata rejection. See the
-[proxy regression record](docs/dev-proxy.md) for captured headers and results.
+Only start one development stack for this checkout. If Next reports an existing
+server, use that server or stop its terminal with Ctrl+C before restarting.
+For a different frontend hostname/port, set its exact `DEV_FRONTEND_ORIGIN`.
+The proxy-aware origin checks permit that development frontend and reject
+unrelated explicit origins; production retains checks for its own origin and
+cross-site Fetch Metadata. No wildcard CORS is enabled.
 
-`npm run test:dev-proxy` verifies the running development stack with the actual
-live `.env`, an unrelated-origin rejection, an external-link status navigation,
-and a browser mission request. It may spend inference credits, and continues
-to a synthetic journal only if missions succeed. Set `BROWSER_EXECUTABLE` as
-described below if using an installed browser. It reports request routing
-separately from actual model inference.
+To explore without keys, set `AI_MODE=demo`. This explicitly labeled mode uses
+fixed missions and deterministic note excerpts; it does not call Gemma and has
+no transcription. Live errors never silently substitute demo output.
+
+## Production
+
+Stop the development stack, then run from the repository root:
+
+```sh
+npm run build
+npm start
+```
+
+The build compiles Next.js and the backend. `npm start` serves both through one
+Express process at **http://localhost:3001**, or the configured `PORT`/`API_PORT`.
+The compiled entry point selects production mode.
+
+[render.yaml](render.yaml) is a prepared deployment blueprint, not a deployed
+demo. Its provider defaults are OpenRouter. To use the verified Google setup,
+override its Gemma base URL, model, and output format with the values above and
+set credentials in the host's secret settings. History belongs to the browser
+origin; changing hostnames does not migrate it.
+
+## Providers and architecture
+
+The live configuration verified on **9 October 2026** uses:
+
+| Purpose                                 | Provider            | Model                    | Base URL                                                  |
+| --------------------------------------- | ------------------- | ------------------------ | --------------------------------------------------------- |
+| Missions, journal, next-walk suggestion | Google-hosted Gemma | `gemma-4-26b-a4b-it`     | `https://generativelanguage.googleapis.com/v1beta/openai` |
+| Voice transcription                     | Groq-hosted Whisper | `whisper-large-v3-turbo` | `https://api.groq.com/openai/v1`                          |
+
+Google calls its hosting interface the Gemini API, but the requested model here
+is **Gemma 4**, not Gemini. Google documents this exact model in its
+[hosted Gemma guide](https://ai.google.dev/gemma/docs/core/gemma_on_gemini_api).
+TrailTape uses its OpenAI-compatible chat endpoint with thinking disabled for
+this model. `GEMMA_OUTPUT_FORMAT=prompt` omits unsupported response-format
+assumptions; application validation still runs. Groq receives multipart audio
+through its [speech-to-text API](https://console.groq.com/docs/speech-to-text).
+
+```text
+Next.js UI -> same-origin /api -> Express -> Google / Gemma
+                                        -> Groq / Whisper
+Browser localStorage: walk history and unfinished text drafts
+```
+
+`app/` contains the interface, `server/` the private provider calls, and `shared/`
+the schemas, grounding rules, and Markdown exports. The adapters accept
+configurable compatible endpoints; changing a URL alone does not establish model
+compatibility. This release does not run a local model or fine-tune one. Published
+Gemma weights leave a path to other hosting or self-hosting; prompts and
+[synthetic evaluation inputs](docs/evaluation.json) are inspectable in the repo.
+
+## Notes, voice, and grounding
+
+- **Record → Stop → playback → Review transcript → correct → Save.** Recording
+  requests microphone permission on click and releases the microphone on stop or
+  cancellation. It stops automatically at 90 seconds; audio is capped at 10 MB.
+  Imported clips have format/size checks, but their duration is not measured.
+- Recording requires HTTPS or localhost. On a phone opening a plain HTTP LAN
+  address, use its voice recorder and import an audio file instead. Supported
+  detected formats: WAV, MP3, M4A/MP4, OGG, WebM, and FLAC.
+- Typed drafts, reviewed transcripts, and unfinished edits recover after refresh
+  and remain attached to their walk. Raw audio stays in tab memory and is lost on
+  refresh. Failed transcription retains the clip for Retry or Discard.
+- Notes have stable IDs. Editing a saved note preserves its ID and invalidates
+  the journal so it can be regenerated from the corrected source.
+- Strict Zod validation rejects unknown citations. Every recorded observation
+  must quote one **entire saved note exactly**, and every input note must appear.
+  This preserves words such as “maybe” and “I couldn't identify it.”
+- Tentative interpretations are optional; an empty section is omitted. Any
+  comparison must cite at least two distinct notes. Prompts discourage species
+  guesses and simple paraphrases. These checks establish structure and source
+  presence, **not semantic accuracy**: generated titles, interpretations, and
+  next missions still need review. Numbered source links open the original notes.
+
+Limits include 20 notes per journal, 2,000 characters per note/transcript, and
+64 KB JSON input. Malformed or truncated output is rejected without inventing a
+repair. Provider attempts time out after 20 seconds, with at most one retry for
+transient failures; proxy/browser deadlines allow those attempts to finish.
+Readable errors keep notes available for retry. Local throttling is 20 API
+requests per minute per IP, with at most two simultaneous audio uploads.
+
+## Your data
+
+Walk cards, saved notes, journals (up to 100 walks), and unfinished text drafts
+use **unencrypted localStorage**. There is no server database, login, or device
+sync. Clearing browser data removes them; shared-device access and storage limits
+matter. Storage failures show a warning, and failed history saves retain the
+earlier draft backup.
+
+Export finished journals or mission cards as Markdown; cards also support
+print/save to PDF. Unsaved drafts are not a full backup export. Delete a walk
+through **My walks** to remove its local notes, journal, and draft, or clear an
+individual unfinished draft. Export before clearing browser data.
+
+In live mode, preferences go to Google for mission generation. Creating a
+journal sends that walk's saved notes, including corrected transcripts, to Google.
+Unfinished drafts are not sent to Gemma until saved and used for a journal.
+Requesting transcription sends the raw clip through Express to Groq. The app
+does not persist raw audio in history or server files; backend buffers are
+cleaned up after processing. Local deletion does not retract data already sent
+to a provider.
+
+Hosted inference needs internet and external processing. Google unpaid-service
+data handling is described in its [API terms](https://ai.google.dev/gemini-api/terms);
+review [Groq's data controls](https://console.groq.com/docs/your-data) too.
+Local history does not imply complete privacy or offline AI. Provider access,
+free quotas, and availability can change. Download/print a card before leaving;
+there is no offline service worker. Fonts are served locally, without analytics
+or remote UI images.
+
+## Verification and limits
+
+Existing verification records dated **9 October 2026** report:
+
+| Check                                  | Recorded result                                                                                                                                               |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Automated tests                        | 37 passing tests, both frontend/backend type checks, and production build                                                                                     |
+| Browser workflow                       | Production demo: desktop/mobile, print/export, citations, history, editing/regeneration, deletion; voice/draft checks include permission and storage failures |
+| Development routing                    | Status and mission requests through `localhost:3000`; unrelated explicit origin rejected with 403                                                             |
+| Real Gemma inference, synthetic inputs | Successful mission/journal browser runs; separate two-note journal check preserved exact quotes with zero interpretations                                     |
+| Real Groq inference, synthetic speech  | Successful WAV upload and browser-recorded WebM transcription using a fake microphone backed by synthetic speech                                              |
+| Outdoor use and human speech in noise  | Pending; no user study or overall accuracy claim                                                                                                              |
+
+Routing success and actual inference success are separate results. Other real
+Google attempts returned provider errors or timed out; successful calls do not
+guarantee availability. The synthetic microphone checks do not establish outdoor
+transcription quality. There is no species identification, mapping, location
+tracking, or persistent audio archive.
+
+Details: [voice/draft verification](docs/voice-and-drafts.md),
+[Google routing and live inference](docs/google-proxy-verification.md).
 
 ```sh
 npm run typecheck
 npm test
 npm run build
-npm start
 ```
 
-The production command serves both the frontend and API from one Express
-process at **http://localhost:3001** (or `PORT`/`API_PORT`). `npm start` selects
-production automatically from the compiled entry point. Run from the repository
-root. Development and production shouldn't run simultaneously on the same port.
+For browser checks, install Chromium with `npx playwright install chromium` or
+set `BROWSER_EXECUTABLE` to installed Chrome/Edge. Run `npm run test:browser`
+against a running production **demo-mode** server. For voice and live-proxy
+checks, follow the records above (`npm run test:voice`, `npm run test:dev-proxy`).
+Voice tests mock transcription by default; `TEST_LIVE_AUDIO=1` uses real Groq
+with synthetic speech. Live checks and `npm run evaluate` consume provider quota.
+The evaluation script contains six synthetic cases and emits output, validation
+results, and elapsed times; its existence is not a completed live evaluation.
 
-## Exact providers and models
+## License and attribution
 
-Official documentation checked on 9 October 2026; access/quotas can change.
+Application code is [MIT licensed](LICENSE); see [NOTICE](NOTICE) for component
+attribution. The interface uses Next.js, React, Express, and Zod. DM Sans and
+Libre Caslon Display are bundled through Fontsource under their included SIL
+Open Font Licenses. [Whisper](https://github.com/openai/whisper) is MIT licensed.
+Google lists Gemma 4 under Apache 2.0 in its
+[model card](https://ai.google.dev/gemma/docs/core/model_card_4); earlier Gemma
+models have separate [Gemma terms](https://ai.google.dev/gemma/terms).
+No model weights are distributed here. Hosted use is also subject to
+[Google API terms](https://ai.google.dev/gemini-api/terms) and
+[Groq terms](https://groq.com/terms-of-use/), or the terms of any replacement host.
 
-| Purpose              | Service / model                     | API format / access                                                                                                                                                    |
-| -------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Missions and journal | OpenRouter, `google/gemma-3-27b-it` | `POST https://openrouter.ai/api/v1/chat/completions`, Bearer key, JSON `model` and `messages`; OpenRouter account, key and available credits/access                    |
-| Audio transcript     | Groq, `whisper-large-v3-turbo`      | `POST https://api.groq.com/openai/v1/audio/transcriptions`, Bearer key, multipart `file`, `model`, `response_format=json`; Groq account/key and model permission/quota |
-
-References: [Gemma listing and published weight link](https://openrouter.ai/google/gemma-3-27b-it),
-[OpenRouter API quickstart](https://openrouter.ai/docs/quickstart),
-[authentication](https://openrouter.ai/docs/api_reference/authentication),
-[Groq quickstart](https://console.groq.com/docs/quickstart),
-[speech-to-text formats and models](https://console.groq.com/docs/speech-to-text).
-This is **Gemma**, Google's open-weight model, not Gemini. No local model install
-is needed. Documented OpenRouter Gemma 3 27B / Gemma 4 26B A4B and 31B endpoints,
-and DeepInfra Gemma 3 27B, use JSON-object response mode automatically. OpenRouter
-requests also require providers to support the requested parameters. We keep
-strict application validation because JSON mode does not enforce our schema or
-establish grounding. See [OpenRouter model support](https://openrouter.ai/google/gemma-4-26b-a4b-it:free)
-and [DeepInfra JSON modes](https://docs.deepinfra.com/chat/structured-outputs).
-
-`GEMMA_OUTPUT_FORMAT=auto` is the default. Unknown model/endpoint combinations
-remain prompt-only; set `json_object` only after confirming support, or `prompt`
-to disable the response-format parameter. Unsupported settings fail visibly;
-there is no silent downgrade. We accept bare valid JSON or a single complete
-Markdown code block containing valid JSON, then apply the same schemas and
-source checks. Prose surrounding JSON, malformed syntax, and truncated responses
-are rejected without automatic repair. Errors identify the mission-card or
-journal stage correctly.
-
-See the [Google proxy and live inference verification](docs/google-proxy-verification.md)
-for the Google endpoint configuration, timeout correction, and successful synthetic browser run.
-See the [JSON reliability verification record](docs/json-output.md) for the
-formatting regressions and the live endpoint's separate rate-limit failure.
-
-The two adapters in `server/providers.ts` have independently configurable base
-URLs and model IDs for compatible APIs. Changes require confirming that the
-new endpoint serves an actual Gemma model or an appropriate transcription model.
-The default Gemma model is not a free-model alias; do not assume inference costs
-nothing. OpenRouter can route this model across inference providers; it does not
-fall back to a different model in TrailTape's request.
-
-## Why open weights matter here
-
-Gemma is the core of the live experience: it generates small context-sensitive
-missions and a next-walk suggestion from actual notes. Published weights make
-the model portable to other compatible hosting services; the app's prompts,
-schemas, and evaluation inputs make its behavior open to inspection and change.
-That creates a path to self-hosting or fine-tuning later without locking journal
-format and UI to one proprietary model family. This release does neither.
-Hosted access reduces setup work but gives up on-device privacy and offline
-inference. No accuracy, price, or latency advantage over closed models has been
-measured. Gemma is open-weight under its own terms; the app is MIT licensed.
-
-## Architecture and grounding
-
-Voice notes now support Record → Stop → playback → Review transcript, with
-editable text before saving. Typed text, transcript drafts, and unfinished edits
-recover after refresh. Raw audio stays in the tab and is not persisted.
-See [voice and draft setup/verification](docs/voice-and-drafts.md) for live Groq
-checks and the remaining real outdoor tests.
-
-```text
-Next.js UI ── same-origin /api ── Express
-   │                              ├── Gemma adapter ── OpenRouter / Gemma
-   │                              └── Whisper adapter ── Groq / Whisper
-   └── localStorage: cards, original notes, journals (max 100 walks)
-```
-
-`app/` contains the responsive interface; `server/` contains private provider
-calls; `shared/` contains schemas, grounding checks, and Markdown exports.
-In production, Express delegates non-API requests to Next's custom server.
-This keeps Render deployment to one process; it is not Next standalone output.
-No authentication, maps, queues, analytics, or persistent server storage.
-
-- Notes receive stable UUIDs when saved. Editing preserves IDs but invalidates
-  the old journal; you regenerate it from the current notes.
-- Zod validates strict output shapes. References in observations,
-  interpretations, and next mission must all point to actual source-note IDs.
-- Each recorded observation must quote **one entire source note exactly**, and
-  every input note must be represented. A shortened quote cannot erase uncertainty.
-- Interpretations are optional and structurally tentative. Prompts forbid
-  speculative species IDs. Application checks don't establish semantic truth;
-  title, interpretations, missions, and next-mission grounding need human review.
-- Input notes are serialized as untrusted data inside the prompt. The model has
-  no tools, code execution, retrieval, or system access. Prompt injection can
-  still influence generated prose; citations alone are not a complete defense.
-- Invalid/truncated model output is rejected, never shown as a successful journal.
-  Provider failures don't substitute demo output. Notes remain available to retry.
-
-Limits: 1–20 unique notes, 2,000 characters each; 64 KB JSON input; three missions;
-10 MB audio; detected WAV/MP3/M4A/MP4/OGG/WebM/FLAC content. The UI accepts short
-recordings; actual duration is not measured. Transcripts over 2,000 characters
-are rejected with a request to use a shorter clip. MP4/WebM can contain video;
-import audio-only clips to avoid sending unnecessary data.
-
-Provider requests have a 20-second timeout per attempt and at most one retry,
-with a 400 ms delay, for connection failures, 429s, or 5xx responses. Auth/credit
-errors are not retried. Frontend timeout is 55 seconds. An in-memory rate limiter
-permits 20 API requests per minute per IP, and at most two concurrent audio
-uploads per process. Audio uses bounded memory buffers, content-signature
-validation, and zeroes the original buffer after processing; it creates no
-temporary files. Multipart/fetch may make additional memory copies, reclaimed
-by the runtime. Never interpret buffer cleanup as provider deletion.
-
-## Data handling and terms
-
-Preferences go through Express to the configured Gemma host (Google in the
-verified free setup, or OpenRouter and its routed provider). On journal
-creation, all saved notes for that walk, including corrected transcripts, go
-with preferences. Imported audio and recordings requested for transcription go
-through Express to Groq; raw audio is not saved in walk history. Unfinished text
-and reviewed transcript drafts are saved locally and recovered after refresh;
-they are not sent to Gemma until saved and used to create a journal. Raw recordings
-remain in the tab until discarded/transcribed and are lost on refresh.
-History and drafts use unencrypted localStorage;
-browser clearing, storage limits, private mode, and shared-device access matter.
-Export Markdown to keep a portable copy. Delete a walk through My walks.
-
-There is no app-level logging of private notes, raw audio, API keys, or provider
-response bodies. Hosted services may have their own logging and retention.
-Review [OpenRouter provider logging](https://openrouter.ai/docs/guides/privacy/provider-logging)
-and account privacy controls, [OpenRouter privacy](https://openrouter.ai/privacy),
-and [Groq data controls](https://console.groq.com/docs/your-data).
-Hosted inference requires internet and is not fully private. Print/download your
-card before walking; the app does not promise offline reloading or inference.
-Fonts are bundled locally; the interface uses no remote images or analytics.
-
-Use of hosted Gemma functionality must comply with the [Gemma terms](https://ai.google.dev/gemma/terms)
-and [prohibited-use restrictions](https://ai.google.dev/gemma/prohibited_use_policy).
-The live interface requires agreement before sending data. Operators must also
-comply with [OpenRouter terms](https://openrouter.ai/terms) and
-[Groq terms](https://groq.com/terms-of-use/). See `NOTICE`. No model weights are
-distributed here and the app's MIT license doesn't relicense models or services.
-
-## Verification and evaluation
-
-Focused tests cover strict output validation, citations in every section,
-uncertainty removal, omitted notes, input limits, untrusted-data prompting,
-transient recovery, auth failures, bounded retries, real timeout cancellation,
-no demo substitution, the demo API slice, and audio signature/size/multipart
-handling. Mock audio calls are not evidence of real transcription quality.
-
-To repeat browser verification, start a production server with `AI_MODE=demo`;
-install Playwright's browser (`npx playwright install chromium`) or set
-`BROWSER_EXECUTABLE` to a local Chrome/Edge executable, then `npm run test:browser`.
-`TEST_BASE_URL` defaults to http://localhost:3001. The script exercises desktop
-and mobile journeys, print styling, downloads, source links, history persistence,
-note editing/regeneration, and deletion. It refuses to run a live-mode journey.
-Screenshots and the exported synthetic journal are written to `artifacts/`.
-They are sample-mode evidence only.
-
-For real model evaluation, set your local Gemma key and `AI_MODE=live`, then:
-
-```sh
-npm run evaluate
-```
-
-This sends only the synthetic cases in `docs/evaluation.json` to Gemma and costs
-provider credits. It emits the exact model, measured elapsed time including
-retries, structural pass/fail, and generated output. Manually review every case
-against its expectations, especially invented species, unsupported interpretations,
-instruction following, and specific next missions. A structural pass is not an
-accuracy score. Do not substitute demo outputs for real evaluation results.
-See [verification record](docs/verification.md) for what actually ran.
-
-## Deployment and submission
-
-`render.yaml` is a prepared [Render Blueprint](https://render.com/docs/blueprint-spec)
-for one Node web service on the free plan. Nothing has been deployed. After you
-choose to deploy, push a new repository, connect it in Render, and review the
-Blueprint, plan availability and any inference charges before creating it.
-Set the keys in Render's secret environment settings, never in YAML. The build
-uses `npm ci && npm run build`; start uses `npm start`; health check is
-`/api/health`. Render provides `PORT` and the Blueprint sets `NODE_ENV=production`.
-Free instances can sleep, making the first request slow. There is no durable
-server filesystem requirement; history stays with each user's browser origin.
-Moving to a new hostname doesn't migrate existing local history.
-
-The server trusts one reverse proxy, as expected on Render. Public demo hosting
-has no user login; IP throttling and provider account spend limits are useful
-bounds, not a full abuse-control system. Review limits before wider exposure.
-Do not claim the Render category from a config file alone.
-
-- [Reproducible synthetic sample](docs/sample-walkthrough.md)
-- [Evaluation inputs](docs/evaluation.json)
-- [Recording / outdoor-test checklist](docs/demo-checklist.md)
-- [DEV submission draft using actual template headings](docs/submission-draft.md)
-
-Before submitting: configure and verify real Gemma, take an actual outdoor walk,
-record evidence and real timings, review model failures, add repository/demo links,
-and replace every draft placeholder. Audio can remain optional if access fails;
-report that honestly. Publish only when you're ready. Verify eligibility against
-the official rules; no prize eligibility is claimed here. Note any post-deadline
-commits in this README as required by the challenge.
-
-## Current limitations
-
-The follow-up development proxy check attempted live Gemma missions using the
-locally configured `google/gemma-3-27b-it:free`. Routing succeeded, but the
-provider adapter returned HTTP 502; no real Gemma output was obtained.
-The later JSON-mode check used `google/gemma-4-26b-a4b-it:free` and received HTTP
-429 both before and after the formatting fix. A subsequent Google Gemma 4 check
-successfully generated missions and a grounded journal through the development
-proxy in a real browser; other Google attempts timed out or returned HTTP 500.
-See [the verification record](docs/google-proxy-verification.md).
-Groq Whisper has successfully transcribed a synthetic spoken WAV upload and a
-browser-recorded WebM using real credentials. Outdoor speech quality remains
-untested; see [voice verification](docs/voice-and-drafts.md). API docs verification confirms the
-intended integration format, not account-level access.
-No outdoor test, real-model accuracy/latency measurement, deployment, or submission
-has been completed. Automatic grounding protects exact recorded notes but doesn't
-guarantee prose is semantically supported. History is device/browser-specific;
-there is no sync, persistent audio storage, offline service worker, or species ID.
-Newly recorded audio supports playback in the tab before transcription.
-The initial workspace was empty and not a Git repository; no existing work was
-overwritten and no remote was created or pushed.
+For the challenge walkthrough, see the
+[outdoor/demo checklist](docs/demo-checklist.md) and
+[unpublished submission draft](docs/submission-draft.md).
