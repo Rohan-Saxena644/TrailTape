@@ -1,0 +1,10 @@
+TrailTape application code is licensed under MIT. No model weights are included.
+Gemma is provided under and subject to the Gemma Terms of Use found at
+https://ai.google.dev/gemma/terms
+Gemma functionality is subject to its use restrictions:
+https://ai.google.dev/gemma/prohibited_use_policy
+Your use of TrailTape's hosted Gemma functionality must comply with these
+terms and restrictions. OpenRouter and Groq accounts have separate terms.
+Whisper model reference: https://github.com/openai/whisper (MIT).
+Fonts: DM Sans and Libre Caslon Display, distributed by @fontsource under
+their included SIL Open Font License files. Fonts are served locally.

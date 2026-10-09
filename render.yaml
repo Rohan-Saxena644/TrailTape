@@ -1,0 +1,28 @@
+# Prepared only. No resources have been deployed.
+services:
+  - type: web
+    name: trailtape
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: 22.16.0
+      - key: AI_MODE
+        value: live
+      - key: GEMMA_BASE_URL
+        value: https://openrouter.ai/api/v1
+      - key: GEMMA_MODEL
+        value: google/gemma-3-27b-it
+      - key: GEMMA_API_KEY
+        sync: false
+      - key: TRANSCRIPTION_API_KEY
+        sync: false
+      - key: TRANSCRIPTION_BASE_URL
+        value: https://api.groq.com/openai/v1
+      - key: TRANSCRIPTION_MODEL
+        value: whisper-large-v3-turbo
