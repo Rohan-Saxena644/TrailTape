@@ -104,8 +104,24 @@ References: [Gemma listing and published weight link](https://openrouter.ai/goog
 [Groq quickstart](https://console.groq.com/docs/quickstart),
 [speech-to-text formats and models](https://console.groq.com/docs/speech-to-text).
 This is **Gemma**, Google's open-weight model, not Gemini. No local model install
-is needed. We use portable JSON prompting and strict application validation
-rather than assuming every routed provider implements JSON-schema output mode.
+is needed. Documented OpenRouter Gemma 3 27B / Gemma 4 26B A4B and 31B endpoints,
+and DeepInfra Gemma 3 27B, use JSON-object response mode automatically. OpenRouter
+requests also require providers to support the requested parameters. We keep
+strict application validation because JSON mode does not enforce our schema or
+establish grounding. See [OpenRouter model support](https://openrouter.ai/google/gemma-4-26b-a4b-it:free)
+and [DeepInfra JSON modes](https://docs.deepinfra.com/chat/structured-outputs).
+
+`GEMMA_OUTPUT_FORMAT=auto` is the default. Unknown model/endpoint combinations
+remain prompt-only; set `json_object` only after confirming support, or `prompt`
+to disable the response-format parameter. Unsupported settings fail visibly;
+there is no silent downgrade. We accept bare valid JSON or a single complete
+Markdown code block containing valid JSON, then apply the same schemas and
+source checks. Prose surrounding JSON, malformed syntax, and truncated responses
+are rejected without automatic repair. Errors identify the mission-card or
+journal stage correctly.
+
+See the [JSON reliability verification record](docs/json-output.md) for the
+formatting regressions and the live endpoint's separate rate-limit failure.
 
 The two adapters in `server/providers.ts` have independently configurable base
 URLs and model IDs for compatible APIs. Changes require confirming that the
@@ -262,8 +278,10 @@ commits in this README as required by the challenge.
 
 The follow-up development proxy check attempted live Gemma missions using the
 locally configured `google/gemma-3-27b-it:free`. Routing succeeded, but the
-provider adapter returned HTTP 502; no real Gemma output was obtained. Whisper
-has not been tested with real credentials. API docs verification confirms the
+provider adapter returned HTTP 502; no real Gemma output was obtained.
+The later JSON-mode check used `google/gemma-4-26b-a4b-it:free` and received HTTP
+429 both before and after the formatting fix, so live inference is still unverified.
+Whisper has not been tested with real credentials. API docs verification confirms the
 intended integration format, not account-level access.
 No outdoor test, real-model accuracy/latency measurement, deployment, or submission
 has been completed. Automatic grounding protects exact recorded notes but doesn't
