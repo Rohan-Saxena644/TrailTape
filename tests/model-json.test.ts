@@ -185,6 +185,65 @@ test("truncated responses are rejected even if their partial content parses", as
   );
 });
 
+test("single-note restatements are omitted while grounded comparisons keep their citations", async () => {
+  const first = "00000000-0000-4000-8000-000000000001";
+  const second = "00000000-0000-4000-8000-000000000002";
+  const notes = [
+    { id: first, text: "A quiet path.", kind: "typed" as const },
+    {
+      id: second,
+      text: "A louder sound near the gate, maybe.",
+      kind: "typed" as const,
+    },
+  ];
+  const value = {
+    title: "Sounds along a path",
+    observations: notes.map((n) => ({ quote: n.text, sourceNoteIds: [n.id] })),
+    interpretations: [
+      {
+        text: "Tentative: The path was quiet.",
+        tentative: true,
+        sourceNoteIds: [first],
+      },
+      {
+        text: "Tentative: The sound level may have differed between these two observations.",
+        tentative: true,
+        sourceNoteIds: [first, second],
+      },
+    ],
+    nextMission: {
+      sourceNoteIds: [first],
+      instruction: "If accessible, listen again at the same spot.",
+    },
+  };
+  const adapter = new GemmaAdapter(config, async (_url, init) => {
+    assert.match(
+      JSON.parse(init!.body as string).messages[0].content,
+      /Default to "interpretations": \[\]/,
+    );
+    return wrap(JSON.stringify(value));
+  });
+  const journal = await adapter.journal(preferences, notes);
+  assert.equal(journal.interpretations.length, 1);
+  assert.deepEqual(journal.interpretations[0].sourceNoteIds, [first, second]);
+  const invalid = {
+    ...value,
+    interpretations: [
+      {
+        ...value.interpretations[0],
+        sourceNoteIds: ["00000000-0000-4000-8000-000000000009"],
+      },
+    ],
+  };
+  await assert.rejects(
+    new GemmaAdapter(config, async () => wrap(JSON.stringify(invalid))).journal(
+      preferences,
+      notes,
+    ),
+    /grounding/,
+  );
+});
+
 test("malformed mission errors name the correct stage and do not retry or substitute demo data", async () => {
   let calls = 0;
   const adapter = new GemmaAdapter(config, async () => {

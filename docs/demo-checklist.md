@@ -9,6 +9,9 @@ Aim for a 90–120 second recording. Do not film other people or private notes.
 - Add your actual observation with uncertainty intact.
 - If Groq access is configured, import your own short recording, correct a
   transcript mistake, and save. Otherwise honestly demonstrate typed notes.
+- Or use Record voice note → Stop recording → Review transcript. Listen back and
+  correct the text before saving. Check a quiet note and one with background noise.
+- Refresh an unfinished typed note or reviewed transcript to show draft recovery.
 - Generate the journal. Follow a source reference to the original note.
 - Show interpretations separately. Do not call them species identifications.
 - Show a next mission derived from the real notes, history after reload, export.

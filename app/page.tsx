@@ -8,14 +8,27 @@ import {
   type Preferences,
   type Note,
 } from "../shared/schema";
-import { journalMarkdown, missionMarkdown } from "../shared/export";
+import {
+  journalMarkdown,
+  missionMarkdown,
+  comparisonInterpretations,
+} from "../shared/export";
 import { readApiResponse } from "../shared/api-response";
+import {
+  DRAFT_STORAGE,
+  emptyDraftStore,
+  readDraftStore,
+  updateDraftStore,
+} from "../shared/drafts";
+import VoiceRecorder from "./voice-recorder";
 const STORAGE = "trailtape.walks.v1";
 type Status = {
   mode: "live" | "demo";
   model: string;
   gemmaReady: boolean;
   audioReady: boolean;
+  inferenceProvider?: string;
+  audioProvider?: string;
 };
 type View = "prepare" | "missions" | "notes" | "journal" | "history";
 function download(text: string, name: string) {
@@ -64,10 +77,15 @@ export default function Home() {
   const [consent, setConsent] = useState(false);
   const [deleteId, setDeleteId] = useState<string>();
   const [notice, setNotice] = useState("");
+  const [audioLocked, setAudioLocked] = useState(false);
+  const [draftStorageError, setDraftStorageError] = useState("");
+  const draftsRef = useRef(emptyDraftStore());
+  const draftStorageBlocked = useRef(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const taskRef = useRef(false);
   useEffect(() => {
+    let parsedHistory: Walk[] = [];
     try {
       const raw = localStorage.getItem(STORAGE);
       if (raw) {
@@ -77,10 +95,32 @@ export default function Home() {
         for (const w of parsed)
           if (w.journal) validateJournal(w.journal, w.notes);
         setHistory(parsed);
+        parsedHistory = parsed;
       }
     } catch {
       setStorageError(
         "Saved history could not be read. Existing browser data has been left untouched. Export current work before closing.",
+      );
+    }
+    try {
+      draftsRef.current = readDraftStore(
+        localStorage.getItem(DRAFT_STORAGE),
+        parsedHistory,
+      );
+      const recovered = parsedHistory.find(
+        (w) => w.id === draftsRef.current.activeWalkId,
+      );
+      if (recovered) {
+        setWalk(recovered);
+        setPreferences(recovered.preferences);
+        restoreDraft(recovered);
+        setView("notes");
+        setNotice("Your unfinished observation was recovered.");
+      }
+    } catch {
+      draftStorageBlocked.current = true;
+      setDraftStorageError(
+        "Unfinished drafts could not be read. Existing draft data was left untouched; copy your current text before closing.",
       );
     }
     setLoaded(true);
@@ -102,37 +142,97 @@ export default function Home() {
     setError("");
     setRetry(undefined);
   }
+  function persistDrafts() {
+    if (draftStorageBlocked.current) return;
+    try {
+      localStorage.setItem(DRAFT_STORAGE, JSON.stringify(draftsRef.current));
+      setDraftStorageError("");
+    } catch {
+      setDraftStorageError(
+        "Your unfinished text could not be saved in this browser. Copy it before closing or refreshing.",
+      );
+    }
+  }
+  function rememberDraft(
+    text: string,
+    kind = draftKind,
+    edit: string | null = editing ?? null,
+  ) {
+    setDraft(text);
+    setDraftKind(kind);
+    setEditing(edit ?? undefined);
+    if (walk && loaded) {
+      draftsRef.current = updateDraftStore(draftsRef.current, walk.id, {
+        text,
+        kind,
+        editing: edit ?? undefined,
+      });
+      persistDrafts();
+    }
+  }
+  function clearDraft(id = walk?.id) {
+    if (id) {
+      draftsRef.current = updateDraftStore(draftsRef.current, id);
+      persistDrafts();
+    }
+    if (id === walk?.id) {
+      setDraft("");
+      setEditing(undefined);
+      setDraftKind("typed");
+    }
+  }
+  function restoreDraft(w: Walk) {
+    const saved = draftsRef.current.drafts[w.id];
+    setDraft(saved?.text || "");
+    setDraftKind(saved?.kind || "typed");
+    setEditing(saved?.editing);
+  }
   function persist(next: Walk[]) {
     setHistory(next);
     try {
       localStorage.setItem(STORAGE, JSON.stringify(next));
       setStorageError("");
+      draftsRef.current = readDraftStore(
+        JSON.stringify(draftsRef.current),
+        next,
+      );
+      persistDrafts();
+      return true;
     } catch {
       setStorageError(
         "Browser storage is unavailable or full. Export your journal; changes are held only in this tab.",
       );
+      return false;
     }
   }
   function save(w: Walk) {
     setWalk(w);
-    if (loaded)
-      persist([w, ...history.filter((x) => x.id !== w.id)].slice(0, 100));
+    return (
+      loaded &&
+      persist([w, ...history.filter((x) => x.id !== w.id)].slice(0, 100))
+    );
   }
-  async function run(label: string, operation: () => Promise<void>) {
-    if (taskRef.current) return;
+  async function run(
+    label: string,
+    operation: () => Promise<void>,
+    allowRetry = true,
+  ) {
+    if (taskRef.current) return false;
     taskRef.current = true;
     setBusy(label);
     setError("");
     setRetry(undefined);
     try {
       await operation();
+      return true;
     } catch (e) {
       setError(
         e instanceof Error && e.name !== "TimeoutError"
           ? e.message
           : "The request timed out. Your notes remain here. Please retry.",
       );
-      setRetry(() => () => void run(label, operation));
+      if (allowRetry) setRetry(() => () => void run(label, operation));
+      return false;
     } finally {
       taskRef.current = false;
       setBusy("");
@@ -164,6 +264,7 @@ export default function Home() {
         model: result.model,
       };
       save(w);
+      restoreDraft(w);
       setView("missions");
     });
   }
@@ -178,11 +279,19 @@ export default function Home() {
           ...walk.notes,
           { id: crypto.randomUUID(), text: draft.trim(), kind: draftKind },
         ];
-    save({ ...walk, notes, journal: undefined });
-    setDraft("");
-    setEditing(undefined);
-    setDraftKind("typed");
-    setNotice("Observation saved locally.");
+    const persisted = save({ ...walk, notes, journal: undefined });
+    if (persisted) clearDraft();
+    else {
+      // Keep the previously autosaved draft as a recovery copy if history failed.
+      setDraft("");
+      setEditing(undefined);
+      setDraftKind("typed");
+    }
+    setNotice(
+      persisted
+        ? "Observation saved locally."
+        : "Observation added in this tab. Browser storage could not save it.",
+    );
   }
   function createJournal() {
     if (!walk) return;
@@ -201,42 +310,54 @@ export default function Home() {
       setView("journal");
     });
   }
-  function upload(file: File) {
+  async function upload(file: File, allowRetry = true) {
     if (draft.trim()) {
       setError("Save or clear your current note before importing audio.");
-      return;
+      return false;
     }
     if (file.size > 10 * 1024 * 1024) {
       setError("Choose a recording under 10 MB.");
-      return;
+      return false;
     }
-    void run("Listening to your recording…", async () => {
-      const body = new FormData();
-      body.append("audio", file);
-      const result = await request<{ text: string }>("transcribe", body);
-      setDraft(result.text);
-      setDraftKind("audio");
-      setEditing(undefined);
-      setNotice(
-        "Transcript ready. Correct it below, then save it as an observation.",
-      );
-    });
+    return run(
+      "Listening to your recording…",
+      async () => {
+        const body = new FormData();
+        body.append("audio", file);
+        const result = await request<{ text: string }>("transcribe", body);
+        rememberDraft(result.text, "audio", null);
+        setNotice(
+          "Transcript ready. Correct it below, then save it as an observation.",
+        );
+      },
+      allowRetry,
+    );
   }
   function openWalk(w: Walk) {
     setWalk(w);
     setPreferences(w.preferences);
-    setDraft("");
-    setEditing(undefined);
-    setView(w.journal ? "journal" : w.notes.length ? "notes" : "missions");
+    restoreDraft(w);
+    setView(
+      draftsRef.current.drafts[w.id]
+        ? "notes"
+        : w.journal
+          ? "journal"
+          : w.notes.length
+            ? "notes"
+            : "missions",
+    );
     setError("");
   }
   function changeView(v: View) {
-    if (busy) return;
+    if (busy || audioLocked) return;
     setView(v);
     clearFailure();
     setNotice("");
   }
   const canSend = status?.mode === "demo" || consent;
+  const interpretations = walk?.journal
+    ? comparisonInterpretations(walk.journal)
+    : [];
   const references = (ids: string[]) => (
     <div className="references">
       {ids.map((id) => (
@@ -259,13 +380,13 @@ export default function Home() {
           <button
             className={view === "history" ? "nav active" : "nav"}
             onClick={() => changeView("history")}
-            disabled={!!busy}
+            disabled={!!busy || audioLocked}
           >
             My walks <span className="count">{history.length}</span>
           </button>
           <button
             className="nav"
-            disabled={!!busy}
+            disabled={!!busy || audioLocked}
             onClick={() => changeView("prepare")}
           >
             New walk <span aria-hidden="true">↗</span>
@@ -296,11 +417,16 @@ export default function Home() {
             {storageError}
           </p>
         )}
+        {draftStorageError && (
+          <p className="alert" role="alert">
+            {draftStorageError}
+          </p>
+        )}
         {error && (
           <div className="alert" role="alert">
             {error}{" "}
             {retry && (
-              <button disabled={!!busy} onClick={retry}>
+              <button disabled={!!busy || audioLocked} onClick={retry}>
                 Retry
               </button>
             )}
@@ -319,7 +445,7 @@ export default function Home() {
           <div className="steps" aria-label="Walk stages">
             <button
               onClick={() => changeView("prepare")}
-              disabled={!!busy}
+              disabled={!!busy || audioLocked}
               aria-current={view === "prepare" ? "step" : undefined}
             >
               01 <span>Make room</span>
@@ -327,7 +453,7 @@ export default function Home() {
             <span>—</span>
             <button
               onClick={() => changeView("missions")}
-              disabled={!walk || !!busy}
+              disabled={!walk || !!busy || audioLocked}
               aria-current={view === "missions" ? "step" : undefined}
             >
               02 <span>Go notice</span>
@@ -335,7 +461,7 @@ export default function Home() {
             <span>—</span>
             <button
               onClick={() => changeView("notes")}
-              disabled={!walk || !!busy}
+              disabled={!walk || !!busy || audioLocked}
               aria-current={
                 view === "notes" || view === "journal" ? "step" : undefined
               }
@@ -387,7 +513,7 @@ export default function Home() {
               <p className="muted">
                 We’ll make three pocket-sized missions for your walk.
               </p>
-              <fieldset disabled={!!busy}>
+              <fieldset disabled={!!busy || audioLocked}>
                 <legend>How much time do you have?</legend>
                 <div className="choices durations">
                   {([10, 20, 30] as const).map((d) => (
@@ -416,7 +542,7 @@ export default function Home() {
               </label>
               <select
                 id="setting"
-                disabled={!!busy}
+                disabled={!!busy || audioLocked}
                 value={preferences.setting}
                 onChange={(e) => {
                   clearFailure();
@@ -430,7 +556,7 @@ export default function Home() {
                   <option key={s}>{s}</option>
                 ))}
               </select>
-              <fieldset disabled={!!busy}>
+              <fieldset disabled={!!busy || audioLocked}>
                 <legend>What catches your curiosity?</legend>
                 <div className="choices interests">
                   {(
@@ -560,21 +686,25 @@ export default function Home() {
                   maxLength={2000}
                   rows={6}
                   value={draft}
-                  disabled={!!busy}
+                  disabled={!!busy || audioLocked}
                   onChange={(e) => {
                     clearFailure();
-                    setDraft(e.target.value);
+                    rememberDraft(e.target.value);
                   }}
                 />
                 <p className="hint">
                   {draft.length}/2,000 characters · Keep uncertainty in your
                   words.
+                  {draft &&
+                    !draftStorageError &&
+                    " Draft saved in this browser."}
                 </p>
                 <div className="actions">
                   <button
                     className="primary"
                     disabled={
                       !!busy ||
+                      audioLocked ||
                       !draft.trim() ||
                       (!editing && walk.notes.length >= 20)
                     }
@@ -585,11 +715,10 @@ export default function Home() {
                   {draft && (
                     <button
                       className="secondary"
-                      disabled={!!busy}
+                      disabled={!!busy || audioLocked}
                       onClick={() => {
-                        setDraft("");
-                        setEditing(undefined);
-                        setDraftKind("typed");
+                        clearFailure();
+                        clearDraft();
                       }}
                     >
                       Clear
@@ -598,7 +727,21 @@ export default function Home() {
                 </div>
                 <div className="audio-area">
                   <span className="eyebrow">HAVE A VOICE NOTE?</span>
-                  <p>Import a short recording, then review the transcript.</p>
+                  <p>
+                    Record up to 90 seconds or import a voice note. Review the
+                    text before saving.
+                  </p>
+                  <VoiceRecorder
+                    disabled={
+                      !!busy ||
+                      !status?.audioReady ||
+                      !canSend ||
+                      !!draft.trim() ||
+                      walk.notes.length >= 20
+                    }
+                    onTranscribe={(file) => upload(file, false)}
+                    onLockChange={setAudioLocked}
+                  />
                   <input
                     ref={fileRef}
                     type="file"
@@ -607,13 +750,20 @@ export default function Home() {
                     aria-label="Import audio recording"
                     onChange={(e) => {
                       const f = e.target.files?.[0];
-                      if (f) upload(f);
+                      if (f) void upload(f);
                       e.target.value = "";
                     }}
                   />
                   <button
                     className="secondary"
-                    disabled={!!busy || !status?.audioReady || !canSend}
+                    disabled={
+                      !!busy ||
+                      audioLocked ||
+                      !status?.audioReady ||
+                      !canSend ||
+                      !!draft.trim() ||
+                      walk.notes.length >= 20
+                    }
                     onClick={() => fileRef.current?.click()}
                   >
                     ↑ Import audio
@@ -646,25 +796,25 @@ export default function Home() {
                       <div className="actions">
                         <button
                           className="text-button"
-                          disabled={!!busy}
+                          disabled={!!busy || audioLocked}
                           onClick={() => {
-                            setDraft(n.text);
-                            setEditing(n.id);
-                            setDraftKind(n.kind);
+                            clearFailure();
+                            rememberDraft(n.text, n.kind, n.id);
                           }}
                         >
                           Edit
                         </button>
                         <button
                           className="text-button"
-                          disabled={!!busy}
-                          onClick={() =>
+                          disabled={!!busy || audioLocked}
+                          onClick={() => {
+                            if (editing === n.id) clearDraft();
                             save({
                               ...walk,
                               notes: walk.notes.filter((x) => x.id !== n.id),
                               journal: undefined,
-                            })
-                          }
+                            });
+                          }}
                         >
                           Remove
                         </button>
@@ -676,6 +826,7 @@ export default function Home() {
                   className="primary wide"
                   disabled={
                     !!busy ||
+                    audioLocked ||
                     !walk.notes.length ||
                     !canSend ||
                     !status?.gemmaReady ||
@@ -737,23 +888,20 @@ export default function Home() {
                   {references(o.sourceNoteIds)}
                 </blockquote>
               ))}
-              <h2>Tentative interpretations</h2>
-              <p className="hint">
-                Generated suggestions, not verified facts or species
-                identifications.
-              </p>
-              {walk.journal.interpretations.length ? (
-                walk.journal.interpretations.map((o, i) => (
-                  <div key={i}>
-                    <p>{o.text}</p>
-                    {references(o.sourceNoteIds)}
-                  </div>
-                ))
-              ) : (
-                <p className="muted">
-                  No interpretations added. Your observations stand on their
-                  own.
-                </p>
+              {interpretations.length > 0 && (
+                <>
+                  <h2>Tentative interpretations</h2>
+                  <p className="hint">
+                    Generated suggestions, not verified facts or species
+                    identifications.
+                  </p>
+                  {interpretations.map((o, i) => (
+                    <div key={i}>
+                      <p>{o.text}</p>
+                      {references(o.sourceNoteIds)}
+                    </div>
+                  ))}
+                </>
               )}
               <div className="next-mission">
                 <p className="eyebrow">A THREAD FOR NEXT TIME</p>
@@ -769,10 +917,10 @@ export default function Home() {
             {walk.notes.map((n, i) => (
               <article id={`note-${n.id}`} key={n.id} className="note source">
                 <p className="eyebrow">
-                  NOTE {i + 1} · {n.kind}
+                  NOTE {i + 1} ·{" "}
+                  {n.kind === "audio" ? "REVIEWED TRANSCRIPT" : "TYPED"}
                 </p>
                 <p className="note-text">{n.text}</p>
-                <small className="note-id">{n.id}</small>
               </article>
             ))}
             <p className="hint">
@@ -848,6 +996,7 @@ export default function Home() {
                           className="secondary"
                           onClick={() => {
                             persist(history.filter((x) => x.id !== w.id));
+                            clearDraft(w.id);
                             if (walk?.id === w.id) setWalk(undefined);
                             setDeleteId(undefined);
                           }}
@@ -872,10 +1021,13 @@ export default function Home() {
           <div>
             <span className="eyebrow">A NOTE ON YOUR NOTES</span>
             <p>
-              History stays in this browser. In live mode, preferences and saved
-              notes go to OpenRouter and its inference provider; imported audio
-              goes to Groq. Hosted inference requires internet and is not fully
-              private. Avoid sensitive details.
+              History and unfinished text stay in this browser. In live mode,
+              preferences and saved notes go to{" "}
+              {status?.inferenceProvider || "the configured AI provider"}; audio
+              requested for transcription goes to{" "}
+              {status?.audioProvider || "the configured transcription provider"}
+              . Hosted inference requires internet and is not fully private.
+              Avoid sensitive details.
             </p>
           </div>
           {status?.mode !== "demo" && (
@@ -883,6 +1035,7 @@ export default function Home() {
               <input
                 type="checkbox"
                 checked={consent}
+                disabled={!!busy || audioLocked}
                 onChange={(e) => setConsent(e.target.checked)}
               />{" "}
               I agree to send this data for hosted inference and to the{" "}

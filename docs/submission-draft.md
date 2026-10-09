@@ -63,8 +63,10 @@ fine-tuning on consented field-journal examples; this version does not fine-tune
 
 Hosted access makes this first version practical without requiring a model
 installation. It also gives up the privacy and offline benefits of on-device
-inference. Local history does not make the AI local: notes go to OpenRouter and
-its inference provider, and audio goes to Groq. I use the term open-weight for
+inference. Local history does not make the AI local: the verified configuration
+sends notes to Google's hosted Gemma API, and audio requested for transcription
+goes to Groq. Typed and transcript drafts recover locally after refresh; raw audio
+is not persisted. I use the term open-weight for
 Gemma; its terms and use restrictions are separate from the app's MIT license.
 
 [Add one observed benefit or tradeoff from actual use; do not claim lower cost,

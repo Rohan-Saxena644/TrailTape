@@ -13,6 +13,21 @@ import {
   type Config,
 } from "./providers.js";
 const allowed = new Set(["wav", "mp3", "m4a", "mp4", "ogg", "webm", "flac"]);
+function providerLabel(base: string) {
+  try {
+    const hostname = new URL(base).hostname;
+    return (
+      {
+        "generativelanguage.googleapis.com": "Google",
+        "openrouter.ai": "OpenRouter and its inference provider",
+        "api.deepinfra.com": "DeepInfra",
+        "api.groq.com": "Groq",
+      }[hostname] || "the configured provider"
+    );
+  } catch {
+    return "the configured provider";
+  }
+}
 export function createApp(
   config: Config,
   fetcher: typeof fetch = fetch,
@@ -45,6 +60,8 @@ export function createApp(
       model: config.mode === "demo" ? "sample-adapter" : config.gemmaModel,
       gemmaReady: config.mode === "demo" || !!config.gemmaKey,
       audioReady: config.mode === "live" && !!config.audioKey,
+      inferenceProvider: providerLabel(config.gemmaBase),
+      audioProvider: providerLabel(config.audioBase),
     }),
   );
   app.get("/api/health", (_req, res) => res.json({ ok: true }));

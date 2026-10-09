@@ -162,6 +162,8 @@ test("status exposes live mode and model but never provider credentials", async 
     model: "google/gemma-3-27b-it:free",
     gemmaReady: true,
     audioReady: true,
+    inferenceProvider: "the configured provider",
+    audioProvider: "the configured provider",
   });
   assert.ok(!result.text.includes("private-"));
   assert.equal(result.headers["access-control-allow-origin"], undefined);

@@ -146,6 +146,12 @@ measured. Gemma is open-weight under its own terms; the app is MIT licensed.
 
 ## Architecture and grounding
 
+Voice notes now support Record → Stop → playback → Review transcript, with
+editable text before saving. Typed text, transcript drafts, and unfinished edits
+recover after refresh. Raw audio stays in the tab and is not persisted.
+See [voice and draft setup/verification](docs/voice-and-drafts.md) for live Groq
+checks and the remaining real outdoor tests.
+
 ```text
 Next.js UI ── same-origin /api ── Express
    │                              ├── Gemma adapter ── OpenRouter / Gemma
@@ -191,11 +197,15 @@ by the runtime. Never interpret buffer cleanup as provider deletion.
 
 ## Data handling and terms
 
-Preferences go through Express to OpenRouter and its routed provider. On journal
+Preferences go through Express to the configured Gemma host (Google in the
+verified free setup, or OpenRouter and its routed provider). On journal
 creation, all saved notes for that walk, including corrected transcripts, go
-with preferences. Imported audio goes through Express to Groq; it is not saved
-in walk history. Unsaved typed drafts are held in the tab and are not sent or
-persisted. Refreshing loses unsaved drafts. History uses unencrypted localStorage;
+with preferences. Imported audio and recordings requested for transcription go
+through Express to Groq; raw audio is not saved in walk history. Unfinished text
+and reviewed transcript drafts are saved locally and recovered after refresh;
+they are not sent to Gemma until saved and used to create a journal. Raw recordings
+remain in the tab until discarded/transcribed and are lost on refresh.
+History and drafts use unencrypted localStorage;
 browser clearing, storage limits, private mode, and shared-device access matter.
 Export Markdown to keep a portable copy. Delete a walk through My walks.
 
@@ -286,11 +296,14 @@ The later JSON-mode check used `google/gemma-4-26b-a4b-it:free` and received HTT
 successfully generated missions and a grounded journal through the development
 proxy in a real browser; other Google attempts timed out or returned HTTP 500.
 See [the verification record](docs/google-proxy-verification.md).
-Whisper has not been tested with real credentials. API docs verification confirms the
+Groq Whisper has successfully transcribed a synthetic spoken WAV upload and a
+browser-recorded WebM using real credentials. Outdoor speech quality remains
+untested; see [voice verification](docs/voice-and-drafts.md). API docs verification confirms the
 intended integration format, not account-level access.
 No outdoor test, real-model accuracy/latency measurement, deployment, or submission
 has been completed. Automatic grounding protects exact recorded notes but doesn't
 guarantee prose is semantically supported. History is device/browser-specific;
-there is no sync, audio playback/storage, offline service worker, or species ID.
+there is no sync, persistent audio storage, offline service worker, or species ID.
+Newly recorded audio supports playback in the tab before transcription.
 The initial workspace was empty and not a Git repository; no existing work was
 overwritten and no remote was created or pushed.

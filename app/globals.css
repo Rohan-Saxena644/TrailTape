@@ -490,6 +490,20 @@ textarea::placeholder {
 .audio-area .hint {
   font-size: 10px;
 }
+.voice-recorder {
+  margin: 14px 0;
+}
+.voice-recorder audio {
+  width: 100%;
+  margin: 8px 0 14px;
+}
+.voice-recorder .recorder-error {
+  color: #794622;
+}
+.note:target {
+  outline: 2px solid #8d9e7f;
+  outline-offset: 3px;
+}
 .notes-title {
   font-size: 27px;
 }
