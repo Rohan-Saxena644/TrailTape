@@ -252,6 +252,11 @@ test("Express vertical slice works in explicitly labeled demo mode", async () =>
   assert.match(md, /Mode: demo/);
   assert.match(md, /Original notes/);
   assert.match(md, /small yellow bird/);
+  assert.match(md, /## Your pocket missions/);
+  for (const mission of missions.body.missions) {
+    assert.ok(md.includes(mission.title));
+    assert.ok(md.includes(mission.instruction));
+  }
 });
 test("missing live credentials and unavailable audio return honest errors", async () => {
   const app = createApp({ ...config, gemmaKey: "" });

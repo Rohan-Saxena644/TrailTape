@@ -134,6 +134,12 @@ Gemma weights leave a path to other hosting or self-hosting; prompts and
 
 ## Notes, voice, and grounding
 
+Finished journals include the original pocket missions alongside your saved
+observations and next-walk suggestion; Markdown exports retain them too. Missions
+are invitations, not a record of completion. Original notes expand when you
+follow a source link. The updated layout also works with existing saved journals;
+regenerate a journal to request a new title and follow-up from the current prompts.
+
 - **Record → Stop → playback → Review transcript → correct → Save.** Recording
   requests microphone permission on click and releases the microphone on stop or
   cancellation. It stops automatically at 90 seconds; audio is capped at 10 MB.

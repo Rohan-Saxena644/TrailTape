@@ -297,6 +297,8 @@ try {
     0,
   );
   assert.equal(await page.locator(".note-id").count(), 0);
+  assert.equal(await page.locator(".journal-mission").count(), 3);
+  assert.equal(await page.locator(".source details[open]").count(), 0);
   await page
     .locator("blockquote")
     .first()
@@ -304,6 +306,16 @@ try {
     .click();
   assert.match(page.url(), /#note-/);
   assert.equal(await page.locator(".source:target").count(), 1);
+  assert.equal(await page.locator(".source:target details[open]").count(), 1);
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+    true,
+    "The journal and mission cards must fit the mobile viewport.",
+  );
+  await page.setViewportSize({ width: 1440, height: 1080 });
   await mkdir("artifacts", { recursive: true });
   await page.screenshot({
     path: "artifacts/voice-journal-desktop.png",

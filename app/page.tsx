@@ -967,16 +967,22 @@ export default function Home() {
                 Plan another walk ↗
               </button>
             </div>
-            <section className="journal-missions" aria-labelledby="journal-missions-heading">
+            <section
+              className="journal-missions"
+              aria-labelledby="journal-missions-heading"
+            >
               <p className="eyebrow">THE STARTING POINT</p>
               <h2 id="journal-missions-heading">Your pocket missions</h2>
               <p className="hint">
-                The invitations from this walk. You didn’t have to finish them all.
+                The invitations from this walk. You didn’t have to finish them
+                all.
               </p>
               <ol className="journal-mission-grid">
                 {walk.missions.map((mission, i) => (
                   <li key={i} className="journal-mission">
-                    <span className="eyebrow">INVITATION {String(i + 1).padStart(2, "0")}</span>
+                    <span className="eyebrow">
+                      INVITATION {String(i + 1).padStart(2, "0")}
+                    </span>
                     <h3>{mission.title}</h3>
                     <p>{mission.instruction}</p>
                   </li>
@@ -987,14 +993,19 @@ export default function Home() {
               <p className="eyebrow">WHAT YOU BROUGHT BACK</p>
               <h2>Small things, noticed.</h2>
               <p className="hint">
-                {walk.notes.length} saved {walk.notes.length === 1 ? "observation" : "observations"}.
-                Kept exactly as you wrote or reviewed them.
+                {walk.notes.length} saved{" "}
+                {walk.notes.length === 1 ? "observation" : "observations"}. Kept
+                exactly as you wrote or reviewed them.
               </p>
               {walk.journal.observations.map((o, i) => (
                 <blockquote key={i}>
                   <span className="eyebrow">
-                    NOTE {walk.notes.findIndex((n) => n.id === o.sourceNoteIds[0]) + 1} ·{" "}
-                    {walk.notes.find((n) => n.id === o.sourceNoteIds[0])?.kind === "audio"
+                    NOTE{" "}
+                    {walk.notes.findIndex((n) => n.id === o.sourceNoteIds[0]) +
+                      1}{" "}
+                    ·{" "}
+                    {walk.notes.find((n) => n.id === o.sourceNoteIds[0])
+                      ?.kind === "audio"
                       ? "REVIEWED VOICE NOTE"
                       : "IN YOUR WORDS"}
                   </span>
@@ -1031,11 +1042,11 @@ export default function Home() {
             {walk.notes.map((n, i) => (
               <article id={`note-${n.id}`} key={n.id} className="note source">
                 <details>
-                <summary>
-                  NOTE {i + 1} ·{" "}
-                  {n.kind === "audio" ? "REVIEWED TRANSCRIPT" : "TYPED"}
-                </summary>
-                <p className="note-text">{n.text}</p>
+                  <summary>
+                    NOTE {i + 1} ·{" "}
+                    {n.kind === "audio" ? "REVIEWED TRANSCRIPT" : "TYPED"}
+                  </summary>
+                  <p className="note-text">{n.text}</p>
                 </details>
               </article>
             ))}
