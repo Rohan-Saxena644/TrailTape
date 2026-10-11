@@ -815,7 +815,7 @@ export default function Home() {
                     ref={fileRef}
                     type="file"
                     className="sr-only"
-                    accept=".wav,.mp3,.m4a,.mp4,.ogg,.webm,.flac"
+                    accept=".wav,.mp3,.m4a,.mp4,.ogg,.opus,.webm,.flac"
                     aria-label="Import audio recording"
                     disabled={
                       !!busy ||
@@ -846,7 +846,7 @@ export default function Home() {
                     ↑ Import audio
                   </button>
                   <p className="hint">
-                    WAV, MP3, M4A, MP4, OGG, WebM, FLAC · up to 10 MB.{" "}
+                    WAV, MP3, M4A, MP4, OGG/Opus, WebM, FLAC · up to 10 MB.{" "}
                     {!status?.audioReady &&
                       "Transcription needs a live backend key; typed notes work independently."}
                   </p>

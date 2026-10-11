@@ -117,7 +117,13 @@ export function createApp(
       if (!file) throw new ServiceError("Choose an audio file first.", 400);
       try {
         const detected = await fileTypeFromBuffer(file.buffer);
-        if (!detected || !allowed.has(detected.ext))
+        // file-type calls an Ogg container carrying Opus "opus". Whisper's
+        // upload format is OGG: normalize metadata, retaining the original bytes.
+        const oggOpus =
+          detected?.ext === "opus" &&
+          detected.mime === "audio/ogg; codecs=opus";
+        const extension = oggOpus ? "ogg" : detected?.ext;
+        if (!detected || !extension || !allowed.has(extension))
           throw new ServiceError(
             "Unsupported recording. Use WAV, MP3, M4A, MP4, OGG, WebM, or FLAC.",
             400,
@@ -125,8 +131,8 @@ export function createApp(
         res.json({
           text: await whisper.transcribe(
             file.buffer,
-            detected.mime,
-            detected.ext,
+            oggOpus ? "audio/ogg" : detected.mime,
+            extension,
           ),
         });
       } finally {

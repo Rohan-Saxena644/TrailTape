@@ -317,3 +317,55 @@ test("mock Whisper multipart response flows to editable transcript without a dis
     .expect(200);
   assert.equal(result.body.text, "I think I heard a bird.");
 });
+
+test("Ogg Opus voice notes reach Whisper as OGG without altering the audio", async () => {
+  // Signature fixture only: this tests detection/routing, not audio decoding.
+  const opus = Buffer.alloc(64);
+  opus.write("OggS", 0);
+  opus.write("OpusHead", 28);
+  let calls = 0;
+  const app = createApp(
+    { ...config, audioKey: "test-audio" },
+    async (_url, init) => {
+      calls++;
+      assert.ok(init!.body instanceof FormData);
+      const file = (init!.body as FormData).get("file") as File;
+      assert.equal(file.name, "observation.ogg");
+      assert.equal(file.type, "audio/ogg");
+      assert.deepEqual(Buffer.from(await file.arrayBuffer()), opus);
+      return Response.json({ text: "Synthetic Ogg transcript." });
+    },
+  );
+  for (const name of ["WhatsApp voice note.ogg", "voice-note.opus"]) {
+    const result = await request(app)
+      .post("/api/transcribe")
+      .attach("audio", opus, {
+        filename: name,
+        contentType: "application/octet-stream",
+      })
+      .expect(200);
+    assert.equal(result.body.text, "Synthetic Ogg transcript.");
+  }
+  assert.equal(calls, 2);
+});
+
+test("Ogg filenames do not bypass rejection of video or unknown containers", async () => {
+  let called = false;
+  const app = createApp({ ...config, audioKey: "test-audio" }, async () => {
+    called = true;
+    return Response.json({ text: "Should not be called." });
+  });
+  for (const signature of [
+    Buffer.from([0x80, ...Buffer.from("theora")]),
+    Buffer.from("unknown!"),
+  ]) {
+    const file = Buffer.alloc(64);
+    file.write("OggS", 0);
+    signature.copy(file, 28);
+    await request(app)
+      .post("/api/transcribe")
+      .attach("audio", file, "note.ogg")
+      .expect(400);
+  }
+  assert.equal(called, false);
+});

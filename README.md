@@ -146,7 +146,8 @@ regenerate a journal to request a new title and follow-up from the current promp
   Imported clips have format/size checks, but their duration is not measured.
 - Recording requires HTTPS or localhost. On a phone opening a plain HTTP LAN
   address, use its voice recorder and import an audio file instead. Supported
-  detected formats: WAV, MP3, M4A/MP4, OGG, WebM, and FLAC.
+  detected formats: WAV, MP3, M4A/MP4, OGG (including Opus voice notes), WebM,
+  and FLAC. Ogg/Opus uploads are forwarded as `.ogg` without changing their bytes.
 - Typed drafts, reviewed transcripts, and unfinished edits recover after refresh
   and remain attached to their walk. Raw audio stays in tab memory and is lost on
   refresh. Failed transcription retains the clip for Retry or Discard.
