@@ -358,10 +358,61 @@ export default function Home() {
   const interpretations = walk?.journal
     ? comparisonInterpretations(walk.journal)
     : [];
+  const privacyNotice = (
+    <section className="privacy">
+      <div>
+        <span className="eyebrow">A NOTE ON YOUR NOTES</span>
+        <p>
+          History and unfinished text stay in this browser. In live mode,
+          preferences and saved notes go to{" "}
+          {status?.inferenceProvider || "the configured AI provider"}; audio
+          requested for transcription goes to{" "}
+          {status?.audioProvider || "the configured transcription provider"}.
+          Hosted inference requires internet and is not fully private. Avoid
+          sensitive details.
+        </p>
+      </div>
+      {status?.mode !== "demo" && (
+        <label className="consent">
+          <input
+            type="checkbox"
+            checked={consent}
+            disabled={!!busy || audioLocked}
+            onChange={(e) => setConsent(e.target.checked)}
+          />{" "}
+          I agree to send this data for hosted inference and to the{" "}
+          <a
+            href="https://ai.google.dev/gemma/terms"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Gemma terms
+          </a>{" "}
+          and{" "}
+          <a
+            href="https://ai.google.dev/gemma/prohibited_use_policy"
+            target="_blank"
+            rel="noreferrer"
+          >
+            use restrictions
+          </a>
+          .
+        </label>
+      )}
+    </section>
+  );
   const references = (ids: string[]) => (
     <div className="references">
       {ids.map((id) => (
-        <a key={id} href={`#note-${id}`}>
+        <a
+          key={id}
+          href={`#note-${id}`}
+          onClick={() => {
+            const source = document.getElementById(`note-${id}`);
+            const details = source?.querySelector("details");
+            if (details) details.open = true;
+          }}
+        >
           Note {(walk?.notes.findIndex((n) => n.id === id) ?? 0) + 1}
         </a>
       ))}
@@ -669,6 +720,7 @@ export default function Home() {
               A color, a sound, something you couldn’t name. Your own words are
               enough.
             </p>
+            {privacyNotice}
             <div className="notebook-grid">
               <section className="panel">
                 <div className="panel-heading">
@@ -731,6 +783,23 @@ export default function Home() {
                     Record up to 90 seconds or import a voice note. Review the
                     text before saving.
                   </p>
+                  {!canSend && status?.mode === "live" && (
+                    <p className="hint" role="status">
+                      Check the consent box above to enable recording and audio
+                      import. Consent must be confirmed again after a refresh.
+                    </p>
+                  )}
+                  {!!draft.trim() && (
+                    <p className="hint">
+                      Save or clear your current draft before recording or
+                      importing audio.
+                    </p>
+                  )}
+                  {walk.notes.length >= 20 && (
+                    <p className="hint">
+                      This walk has 20 observations. Remove one to add audio.
+                    </p>
+                  )}
                   <VoiceRecorder
                     disabled={
                       !!busy ||
@@ -748,6 +817,14 @@ export default function Home() {
                     className="sr-only"
                     accept=".wav,.mp3,.m4a,.mp4,.ogg,.webm,.flac"
                     aria-label="Import audio recording"
+                    disabled={
+                      !!busy ||
+                      audioLocked ||
+                      !status?.audioReady ||
+                      !canSend ||
+                      !!draft.trim() ||
+                      walk.notes.length >= 20
+                    }
                     onChange={(e) => {
                       const f = e.target.files?.[0];
                       if (f) void upload(f);
@@ -841,6 +918,18 @@ export default function Home() {
                     Save or clear the draft before creating your journal.
                   </p>
                 )}
+                {!canSend && status?.mode === "live" && (
+                  <p className="hint" role="status">
+                    Check the consent box above to create your journal with the
+                    hosted AI provider.
+                  </p>
+                )}
+                {status && !status.gemmaReady && (
+                  <p className="hint">
+                    Journal generation needs a backend Gemma API key. Update the
+                    server configuration and restart both services.
+                  </p>
+                )}
               </section>
             </div>
           </section>
@@ -878,12 +967,37 @@ export default function Home() {
                 Plan another walk ↗
               </button>
             </div>
+            <section className="journal-missions" aria-labelledby="journal-missions-heading">
+              <p className="eyebrow">THE STARTING POINT</p>
+              <h2 id="journal-missions-heading">Your pocket missions</h2>
+              <p className="hint">
+                The invitations from this walk. You didn’t have to finish them all.
+              </p>
+              <ol className="journal-mission-grid">
+                {walk.missions.map((mission, i) => (
+                  <li key={i} className="journal-mission">
+                    <span className="eyebrow">INVITATION {String(i + 1).padStart(2, "0")}</span>
+                    <h3>{mission.title}</h3>
+                    <p>{mission.instruction}</p>
+                  </li>
+                ))}
+              </ol>
+            </section>
             <section className="panel journal-paper">
-              <p className="eyebrow">
-                RECORDED OBSERVATIONS · EXACT SOURCE EXCERPTS
+              <p className="eyebrow">WHAT YOU BROUGHT BACK</p>
+              <h2>Small things, noticed.</h2>
+              <p className="hint">
+                {walk.notes.length} saved {walk.notes.length === 1 ? "observation" : "observations"}.
+                Kept exactly as you wrote or reviewed them.
               </p>
               {walk.journal.observations.map((o, i) => (
                 <blockquote key={i}>
+                  <span className="eyebrow">
+                    NOTE {walk.notes.findIndex((n) => n.id === o.sourceNoteIds[0]) + 1} ·{" "}
+                    {walk.notes.find((n) => n.id === o.sourceNoteIds[0])?.kind === "audio"
+                      ? "REVIEWED VOICE NOTE"
+                      : "IN YOUR WORDS"}
+                  </span>
                   <p>{o.quote}</p>
                   {references(o.sourceNoteIds)}
                 </blockquote>
@@ -905,7 +1019,7 @@ export default function Home() {
               )}
               <div className="next-mission">
                 <p className="eyebrow">A THREAD FOR NEXT TIME</p>
-                <h2>Keep your curiosity going.</h2>
+                <h2>Take one detail a little further.</h2>
                 <p>{walk.journal.nextMission.instruction}</p>
                 {references(walk.journal.nextMission.sourceNoteIds)}
               </div>
@@ -916,11 +1030,13 @@ export default function Home() {
             </p>
             {walk.notes.map((n, i) => (
               <article id={`note-${n.id}`} key={n.id} className="note source">
-                <p className="eyebrow">
+                <details>
+                <summary>
                   NOTE {i + 1} ·{" "}
                   {n.kind === "audio" ? "REVIEWED TRANSCRIPT" : "TYPED"}
-                </p>
+                </summary>
                 <p className="note-text">{n.text}</p>
+                </details>
               </article>
             ))}
             <p className="hint">
@@ -1017,47 +1133,7 @@ export default function Home() {
             )}
           </section>
         )}
-        <section className="privacy">
-          <div>
-            <span className="eyebrow">A NOTE ON YOUR NOTES</span>
-            <p>
-              History and unfinished text stay in this browser. In live mode,
-              preferences and saved notes go to{" "}
-              {status?.inferenceProvider || "the configured AI provider"}; audio
-              requested for transcription goes to{" "}
-              {status?.audioProvider || "the configured transcription provider"}
-              . Hosted inference requires internet and is not fully private.
-              Avoid sensitive details.
-            </p>
-          </div>
-          {status?.mode !== "demo" && (
-            <label className="consent">
-              <input
-                type="checkbox"
-                checked={consent}
-                disabled={!!busy || audioLocked}
-                onChange={(e) => setConsent(e.target.checked)}
-              />{" "}
-              I agree to send this data for hosted inference and to the{" "}
-              <a
-                href="https://ai.google.dev/gemma/terms"
-                target="_blank"
-                rel="noreferrer"
-              >
-                Gemma terms
-              </a>{" "}
-              and{" "}
-              <a
-                href="https://ai.google.dev/gemma/prohibited_use_policy"
-                target="_blank"
-                rel="noreferrer"
-              >
-                use restrictions
-              </a>
-              .
-            </label>
-          )}
-        </section>
+        {view !== "notes" && privacyNotice}
       </main>
       <footer>
         <span>

@@ -106,6 +106,53 @@ try {
     original,
   );
   await page.getByRole("button", { name: "Save observation" }).click();
+  // Refresh recovers local work, but never silently restores provider consent.
+  const journalButton = page.getByRole("button", {
+    name: "Create my field journal",
+  });
+  const recordButton = page.getByRole("button", { name: "Record voice note" });
+  const importButton = page.getByRole("button", {
+    name: "↑ Import audio",
+    exact: true,
+  });
+  for (const button of [journalButton, recordButton, importButton])
+    assert.equal(await button.isDisabled(), true);
+  await page
+    .getByText("Check the consent box above to enable recording", {
+      exact: false,
+    })
+    .waitFor();
+  assert.equal(
+    await page.evaluate(() => {
+      const consent = document.querySelector('input[type="checkbox"]');
+      const notes = document.querySelector(".notebook-grid");
+      return !!(
+        consent.compareDocumentPosition(notes) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+      );
+    }),
+    true,
+    "Consent must appear before the notes controls, not below them.",
+  );
+  await page.getByRole("checkbox").check();
+  for (const button of [journalButton, recordButton, importButton])
+    assert.equal(await button.isEnabled(), true);
+  await page.getByLabel("What did you notice?").fill("Unsaved synthetic note");
+  for (const button of [journalButton, recordButton, importButton])
+    assert.equal(await button.isDisabled(), true);
+  await page.getByRole("button", { name: "Clear", exact: true }).click();
+  for (const button of [journalButton, recordButton, importButton])
+    assert.equal(await button.isEnabled(), true);
+  await page.getByRole("checkbox").uncheck();
+  for (const button of [journalButton, recordButton, importButton])
+    assert.equal(await button.isDisabled(), true);
+  await page.getByRole("checkbox").check();
+  console.log(
+    JSON.stringify({
+      check: "recovered-walk-consent-and-draft-gates",
+      success: true,
+    }),
+  );
   assert.equal(
     await page.evaluate(
       () =>
