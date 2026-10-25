@@ -7,6 +7,12 @@ another screen-heavy activity. Choose a duration, setting, and interests; Gemma
 prepares three short missions. Print or save the card, put the screen away, and
 notice what's around you. You don't have to complete every mission.
 
+The break can be about public life, ordinary objects, signs, architecture,
+movement, or small surprises as well as nature. The default interests favor
+everyday life. Public people-watching means brief observation of the shared
+space, without following, recording, identifying, or guessing private details
+about strangers.
+
 Afterward, optionally bring back typed observations or a voice note. Listen to
 your recording, review and correct the transcript, then save it. TrailTape builds
 a journal with exact original-note excerpts, source links, and a suggestion for
@@ -104,7 +110,7 @@ origin; changing hostnames does not migrate it.
 
 ## Providers and architecture
 
-The live configuration verified on **9 October 2026** uses:
+The live configuration verified on **25 October 2026** uses:
 
 | Purpose                                 | Provider            | Model                    | Base URL                                                  |
 | --------------------------------------- | ------------------- | ------------------------ | --------------------------------------------------------- |
@@ -134,11 +140,14 @@ Gemma weights leave a path to other hosting or self-hosting; prompts and
 
 ## Notes, voice, and grounding
 
-Finished journals include the original pocket missions alongside your saved
-observations and next-walk suggestion; Markdown exports retain them too. Missions
+Finished journals include the original pocket missions, saved observations,
+cited reflections, and three follow-up invitations; Markdown exports retain them
+too. Reflections cover different supported themes, with fewer when a short note
+cannot support more. Choose one follow-up for your next break. Missions
 are invitations, not a record of completion. Original notes expand when you
 follow a source link. The updated layout also works with existing saved journals;
-regenerate a journal to request a new title and follow-up from the current prompts.
+regenerate a journal to request the richer reflections and follow-ups. Old saved
+journals remain readable with their original single suggestion.
 
 - **Record → Stop → playback → Review transcript → correct → Save.** Recording
   requests microphone permission on click and releases the microphone on stop or
@@ -159,13 +168,18 @@ regenerate a journal to request a new title and follow-up from the current promp
 - Tentative interpretations are optional; an empty section is omitted. Any
   comparison must cite at least two distinct notes. Prompts discourage species
   guesses and simple paraphrases. These checks establish structure and source
-  presence, **not semantic accuracy**: generated titles, interpretations, and
+  presence, **not semantic accuracy**: generated titles, reflections, interpretations, and
   next missions still need review. Numbered source links open the original notes.
 
 Limits include 20 notes per journal, 2,000 characters per note/transcript, and
 64 KB JSON input. Malformed or truncated output is rejected without inventing a
-repair. Provider attempts time out after 20 seconds, with at most one retry for
-transient failures; proxy/browser deadlines allow those attempts to finish.
+repair. Provider attempts time out after at most 20 seconds (30 for the longer
+journal response), within a **45-second
+total retry budget**. Busy/rate-limit (429), server (5xx), and connection failures
+retry automatically with at least **five seconds between attempts**; a longer
+`Retry-After` is respected. The final attempt is shortened to the remaining
+budget. Authentication, credit, and invalid-request errors stop immediately.
+The 50-second proxy and 55-second browser deadlines allow this work to finish.
 Readable errors keep notes available for retry. Local throttling is 20 API
 requests per minute per IP, with at most two simultaneous audio uploads.
 
@@ -200,22 +214,25 @@ or remote UI images.
 
 ## Verification and limits
 
-Existing verification records dated **9 October 2026** report:
+Verification as of **25 October 2026**, with earlier audio evidence dated below:
 
-| Check                                  | Recorded result                                                                                                                                               |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Automated tests                        | 37 passing tests, both frontend/backend type checks, and production build                                                                                     |
-| Browser workflow                       | Production demo: desktop/mobile, print/export, citations, history, editing/regeneration, deletion; voice/draft checks include permission and storage failures |
-| Development routing                    | Status and mission requests through `localhost:3000`; unrelated explicit origin rejected with 403                                                             |
-| Real Gemma inference, synthetic inputs | Successful mission/journal browser runs; separate two-note journal check preserved exact quotes with zero interpretations                                     |
-| Real Groq inference, synthetic speech  | Successful WAV upload and browser-recorded WebM transcription using a fake microphone backed by synthetic speech                                              |
-| Outdoor use and human speech in noise  | Pending; no user study or overall accuracy claim                                                                                                              |
+| Check                                  | Recorded result                                                                                                                                                  |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Automated tests                        | 45 passing tests, both frontend/backend type checks, and production build                                                                                        |
+| Browser workflow                       | Production demo: desktop/mobile, print/export, citations, history, editing/regeneration, deletion; voice/draft checks include permission and storage failures    |
+| Development routing                    | Status and mission requests through `localhost:3000`; unrelated explicit origin rejected with 403                                                                |
+| Real Gemma inference, synthetic inputs | Everyday-life mission card and two-note journal with two cited reflections, three follow-ups, and exact quotes; earlier mission/journal browser runs also passed |
+| Real Groq inference, synthetic speech  | 9 October: successful WAV upload and browser-recorded WebM transcription using a fake microphone backed by synthetic speech                                      |
+| Outdoor use and human speech in noise  | Pending; no user study or overall accuracy claim                                                                                                                 |
 
 Routing success and actual inference success are separate results. Other real
 Google attempts returned provider errors or timed out; successful calls do not
 guarantee availability. The synthetic microphone checks do not establish outdoor
 transcription quality. There is no species identification, mapping, location
 tracking, or persistent audio archive.
+
+For the expanded everyday-life missions, journal sections, and retry checks, see
+the [25 October verification record](docs/everyday-missions.md).
 
 Details: [voice/draft verification](docs/voice-and-drafts.md),
 [Google routing and live inference](docs/google-proxy-verification.md).
