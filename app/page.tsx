@@ -2,6 +2,8 @@
 import { useEffect, useRef, useState } from "react";
 import {
   walkSchema,
+  settings,
+  interests as availableInterests,
   validateJournal,
   missionsSchema,
   type Walk,
@@ -12,6 +14,7 @@ import {
   journalMarkdown,
   missionMarkdown,
   comparisonInterpretations,
+  followUpMissions,
 } from "../shared/export";
 import { readApiResponse } from "../shared/api-response";
 import {
@@ -61,7 +64,7 @@ export default function Home() {
   const [preferences, setPreferences] = useState<Preferences>({
     duration: 20,
     setting: "Park",
-    interests: ["Birds", "Sounds"],
+    interests: ["Everyday life", "Small surprises", "Sounds"],
   });
   const [status, setStatus] = useState<Status>();
   const [walk, setWalk] = useState<Walk>();
@@ -486,7 +489,13 @@ export default function Home() {
         {busy && (
           <p className="loading" role="status">
             <span className="spinner" />
-            {busy}
+            <span>
+              {busy}
+              <span className="retry-note">
+                Busy services are retried automatically, with at least five
+                seconds between attempts, for up to 45 seconds.
+              </span>
+            </span>
           </p>
         )}
         <div className="sr-only" role="status">
@@ -534,7 +543,9 @@ export default function Home() {
               </h1>
               <p className="intro">
                 You don’t need a mountain or a whole afternoon. Just a short
-                walk, three things to notice, and a little curiosity.
+                walk, three things to notice, and a little curiosity. Street
+                life, odd signs, everyday objects, people passing by ? it all
+                counts.
               </p>
               <div
                 className="landscape"
@@ -555,103 +566,106 @@ export default function Home() {
                 Just pay attention to what’s around you.
               </p>
             </section>
-            <section className="panel preferences">
-              <div className="panel-heading">
-                <span className="eyebrow">BEFORE YOUR WALK</span>
-                <span aria-hidden="true">↗</span>
-              </div>
-              <h2>Make a little room.</h2>
-              <p className="muted">
-                We’ll make three pocket-sized missions for your walk.
-              </p>
-              <fieldset disabled={!!busy || audioLocked}>
-                <legend>How much time do you have?</legend>
-                <div className="choices durations">
-                  {([10, 20, 30] as const).map((d) => (
-                    <button
-                      key={d}
-                      type="button"
-                      aria-pressed={preferences.duration === d}
-                      className={
-                        preferences.duration === d
-                          ? "choice selected"
-                          : "choice"
-                      }
-                      onClick={() => {
-                        clearFailure();
-                        setPreferences({ ...preferences, duration: d });
-                      }}
-                    >
-                      {d}
-                      <small>minutes</small>
-                    </button>
-                  ))}
+            <div className="preparation-controls">
+              {privacyNotice}
+              <section className="panel preferences">
+                <div className="panel-heading">
+                  <span className="eyebrow">BEFORE YOUR WALK</span>
+                  <span aria-hidden="true">↗</span>
                 </div>
-              </fieldset>
-              <label className="field-label" htmlFor="setting">
-                Where are you heading?
-              </label>
-              <select
-                id="setting"
-                disabled={!!busy || audioLocked}
-                value={preferences.setting}
-                onChange={(e) => {
-                  clearFailure();
-                  setPreferences({
-                    ...preferences,
-                    setting: e.target.value as Preferences["setting"],
-                  });
-                }}
-              >
-                {["Park", "Campus", "Neighborhood", "Garden"].map((s) => (
-                  <option key={s}>{s}</option>
-                ))}
-              </select>
-              <fieldset disabled={!!busy || audioLocked}>
-                <legend>What catches your curiosity?</legend>
-                <div className="choices interests">
-                  {(
-                    ["Birds", "Trees", "Sounds", "Textures", "Light"] as const
-                  ).map((s, i) => (
-                    <button
-                      type="button"
-                      key={s}
-                      className={
-                        preferences.interests.includes(s)
-                          ? "chip selected"
-                          : "chip"
-                      }
-                      aria-pressed={preferences.interests.includes(s)}
-                      onClick={() => toggleInterest(s)}
-                    >
-                      <span aria-hidden="true">
-                        {["⌁", "♧", "≋", "▧", "☀"][i]}
-                      </span>{" "}
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              </fieldset>
-              <p className="hint">Pick at least one. No expertise needed.</p>
-              <button
-                className="primary wide"
-                disabled={
-                  !!busy ||
-                  !status?.gemmaReady ||
-                  !preferences.interests.length ||
-                  !canSend
-                }
-                onClick={generateMissions}
-              >
-                Make my mission card <span aria-hidden="true">→</span>
-              </button>
-              {status && !status.gemmaReady && (
-                <p className="hint">
-                  Live Gemma needs a backend API key. See README for setup.
+                <h2>Make a little room.</h2>
+                <p className="muted">
+                  We’ll make three pocket-sized missions for your walk.
                 </p>
-              )}
-              <p className="screen-note">A minute here. The rest out there.</p>
-            </section>
+                <fieldset disabled={!!busy || audioLocked}>
+                  <legend>How much time do you have?</legend>
+                  <div className="choices durations">
+                    {([10, 20, 30] as const).map((d) => (
+                      <button
+                        key={d}
+                        type="button"
+                        aria-pressed={preferences.duration === d}
+                        className={
+                          preferences.duration === d
+                            ? "choice selected"
+                            : "choice"
+                        }
+                        onClick={() => {
+                          clearFailure();
+                          setPreferences({ ...preferences, duration: d });
+                        }}
+                      >
+                        {d}
+                        <small>minutes</small>
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+                <label className="field-label" htmlFor="setting">
+                  Where are you heading?
+                </label>
+                <select
+                  id="setting"
+                  disabled={!!busy || audioLocked}
+                  value={preferences.setting}
+                  onChange={(e) => {
+                    clearFailure();
+                    setPreferences({
+                      ...preferences,
+                      setting: e.target.value as Preferences["setting"],
+                    });
+                  }}
+                >
+                  {settings.map((s) => (
+                    <option key={s}>{s}</option>
+                  ))}
+                </select>
+                <fieldset disabled={!!busy || audioLocked}>
+                  <legend>What catches your curiosity?</legend>
+                  <div className="choices interests">
+                    {availableInterests.map((s, i) => (
+                      <button
+                        type="button"
+                        key={s}
+                        className={
+                          preferences.interests.includes(s)
+                            ? "chip selected"
+                            : "chip"
+                        }
+                        aria-pressed={preferences.interests.includes(s)}
+                        onClick={() => toggleInterest(s)}
+                      >
+                        <span aria-hidden="true">
+                          {["⌁", "↔", "▥", "✧", "≋", "▧", "☀", "⌁", "♧"][i]}
+                        </span>{" "}
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+                <p className="hint">Pick at least one. No expertise needed.</p>
+                <button
+                  className="primary wide"
+                  disabled={
+                    !!busy ||
+                    !status?.gemmaReady ||
+                    !preferences.interests.length ||
+                    !canSend
+                  }
+                  onClick={generateMissions}
+                >
+                  Make my mission card <span aria-hidden="true">→</span>
+                </button>
+                {status && !status.gemmaReady && (
+                  <p className="hint">
+                    Live Gemma needs a backend API key. See README for setup.
+                  </p>
+                )}
+                <p className="screen-note">
+                  A minute here. The rest out there.
+                </p>
+              </section>
+            </div>
           </div>
         )}
         {view === "missions" && walk && (
@@ -1028,12 +1042,49 @@ export default function Home() {
                   ))}
                 </>
               )}
-              <div className="next-mission">
-                <p className="eyebrow">A THREAD FOR NEXT TIME</p>
-                <h2>Take one detail a little further.</h2>
-                <p>{walk.journal.nextMission.instruction}</p>
-                {references(walk.journal.nextMission.sourceNoteIds)}
-              </div>
+              {!!walk.journal.reflections?.length && (
+                <section
+                  className="journal-reflections"
+                  aria-labelledby="reflections-heading"
+                >
+                  <p className="eyebrow">LOOKING BACK</p>
+                  <h2 id="reflections-heading">More than a list of things.</h2>
+                  <p className="hint">
+                    Generated reflections from your notes, for you to review.
+                    They do not verify what happened or explain anyone's private
+                    thoughts.
+                  </p>
+                  {walk.journal.reflections.map((reflection, i) => (
+                    <article className="journal-reflection" key={i}>
+                      <h3>{reflection.title}</h3>
+                      <p>{reflection.text}</p>
+                      {references(reflection.sourceNoteIds)}
+                    </article>
+                  ))}
+                </section>
+              )}
+              <section
+                className="next-mission"
+                aria-labelledby="follow-ups-heading"
+              >
+                <p className="eyebrow">YOUR NEXT BREAK FROM THE SCREEN</p>
+                <h2 id="follow-ups-heading">A few ways to keep noticing.</h2>
+                <p>
+                  Choose whichever invitation feels interesting. One is enough.
+                </p>
+                <div className="follow-up-list">
+                  {followUpMissions(walk.journal).map((mission, i) => (
+                    <article className="follow-up" key={i}>
+                      <span className="eyebrow">
+                        OPTION {String(i + 1).padStart(2, "0")}
+                      </span>
+                      <h3>{mission.title}</h3>
+                      <p>{mission.instruction}</p>
+                      {references(mission.sourceNoteIds)}
+                    </article>
+                  ))}
+                </div>
+              </section>
             </section>
             <h2>Original notes</h2>
             <p className="hint">
@@ -1144,7 +1195,7 @@ export default function Home() {
             )}
           </section>
         )}
-        {view !== "notes" && privacyNotice}
+        {view !== "notes" && view !== "prepare" && privacyNotice}
       </main>
       <footer>
         <span>

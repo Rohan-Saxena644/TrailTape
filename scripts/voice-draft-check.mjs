@@ -49,6 +49,16 @@ async function fixtures(target) {
             sourceNoteIds: [n.id],
           })),
           interpretations: [],
+          reflections: notes.slice(0, 3).map((n, i) => ({
+            title: `Synthetic reflection ${i + 1}`,
+            text: "Synthetic reflection supported by the saved note, for review rather than a claim of verified truth.",
+            sourceNoteIds: [n.id],
+          })),
+          nextMissions: Array.from({ length: 3 }, (_, i) => ({
+            title: `Synthetic next step ${i + 1}`,
+            instruction: `If accessible, take one minute to compare detail ${i + 1} on your public route with your saved observation. Otherwise choose a nearby surface.`,
+            sourceNoteIds: [notes[i % notes.length].id],
+          })),
           nextMission: {
             sourceNoteIds: [notes[0].id],
             instruction:
@@ -89,6 +99,25 @@ try {
   assert.equal(status.inferenceProvider, "Google");
   await fixtures(page);
   await page.goto(base);
+  assert.equal(
+    await page.locator(".preparation-controls input[type=checkbox]").count(),
+    1,
+  );
+  assert.equal(
+    await page.evaluate(
+      () =>
+        !!(
+          document
+            .querySelector(".preparation-controls .privacy")
+            .compareDocumentPosition(document.querySelector(".preferences")) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+        ),
+    ),
+    true,
+  );
+  await page
+    .getByRole("button", { name: "People & routines", exact: false })
+    .click();
   await page.getByRole("checkbox").check();
   await page.getByRole("button", { name: "Make my mission card" }).click();
   await page.getByRole("button", { name: "I’m back" }).click();
@@ -297,6 +326,8 @@ try {
     0,
   );
   assert.equal(await page.locator(".note-id").count(), 0);
+  assert.equal(await page.locator(".follow-up").count(), 3);
+  assert.ok((await page.locator(".journal-reflection").count()) >= 2);
   assert.equal(await page.locator(".journal-mission").count(), 3);
   assert.equal(await page.locator(".source details[open]").count(), 0);
   await page

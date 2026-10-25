@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { journalExtras } from "./journal-fixture.js";
 import { parseModelJson } from "../server/model-json.js";
 import { GemmaAdapter, type Config } from "../server/providers.js";
 
@@ -137,6 +138,7 @@ test("fenced journals cannot bypass source IDs or exact uncertainty-preserving q
     { id, kind: "typed" as const, text: "A small yellow bird, maybe?" },
   ];
   const journal = {
+    ...journalExtras([id]),
     title: "Field notes",
     observations: [{ sourceNoteIds: [id], quote: notes[0].text }],
     interpretations: [],
@@ -197,6 +199,7 @@ test("single-note restatements are omitted while grounded comparisons keep their
     },
   ];
   const value = {
+    ...journalExtras([first, second]),
     title: "Sounds along a path",
     observations: notes.map((n) => ({ quote: n.text, sourceNoteIds: [n.id] })),
     interpretations: [

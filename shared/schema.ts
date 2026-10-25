@@ -1,12 +1,29 @@
 import { z } from "zod";
+export const settings = [
+  "Park",
+  "Campus",
+  "Neighborhood",
+  "Garden",
+  "Street",
+  "Market",
+  "Public square",
+] as const;
+export const interests = [
+  "Everyday life",
+  "People & routines",
+  "Buildings & objects",
+  "Small surprises",
+  "Sounds",
+  "Textures",
+  "Light",
+  "Birds",
+  "Trees",
+] as const;
 export const preferencesSchema = z
   .object({
     duration: z.union([z.literal(10), z.literal(20), z.literal(30)]),
-    setting: z.enum(["Park", "Campus", "Neighborhood", "Garden"]),
-    interests: z
-      .array(z.enum(["Birds", "Trees", "Sounds", "Textures", "Light"]))
-      .min(1)
-      .max(5),
+    setting: z.enum(settings),
+    interests: z.array(z.enum(interests)).min(1).max(interests.length),
   })
   .strict();
 export const noteSchema = z
@@ -30,13 +47,30 @@ export const missionsSchema = z
     missions: z
       .array(
         z
-          .object({ title: z.string().min(1).max(70), instruction: short })
+          .object({
+            title: z.string().min(1).max(70),
+            instruction: z.string().trim().min(1).max(450),
+          })
           .strict(),
       )
       .length(3),
   })
   .strict();
 const refs = z.array(z.string().uuid()).min(1).max(20);
+const reflectionSchema = z
+  .object({
+    title: z.string().trim().min(1).max(80),
+    text: z.string().trim().min(60).max(800),
+    sourceNoteIds: refs,
+  })
+  .strict();
+const followUpSchema = z
+  .object({
+    title: z.string().trim().min(1).max(80),
+    instruction: z.string().trim().min(60).max(600),
+    sourceNoteIds: refs,
+  })
+  .strict();
 export const journalSchema = z
   .object({
     title: z.string().min(1).max(100),
@@ -62,7 +96,27 @@ export const journalSchema = z
           .strict(),
       )
       .max(5),
-    nextMission: z.object({ sourceNoteIds: refs, instruction: short }).strict(),
+    // Optional additions keep existing browser history readable.
+    reflections: z.array(reflectionSchema).min(1).max(4).optional(),
+    nextMissions: z
+      .array(followUpSchema)
+      .length(3)
+      .refine(
+        (missions) =>
+          new Set(
+            missions.map((m) =>
+              m.instruction.trim().toLowerCase().replace(/\s+/g, " "),
+            ),
+          ).size === 3,
+        "Follow-up choices must have different instructions",
+      )
+      .optional(),
+    nextMission: z
+      .object({
+        sourceNoteIds: refs,
+        instruction: z.string().trim().min(1).max(600),
+      })
+      .strict(),
   })
   .strict();
 export type Preferences = z.infer<typeof preferencesSchema>;
@@ -95,6 +149,8 @@ export function validateJournal(value: unknown, notes: Note[]): Journal {
   for (const item of [
     ...journal.observations,
     ...journal.interpretations,
+    ...(journal.reflections ?? []),
+    ...(journal.nextMissions ?? []),
     journal.nextMission,
   ]) {
     if (item.sourceNoteIds.some((id) => !byId.has(id)))

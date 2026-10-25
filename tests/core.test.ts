@@ -1,18 +1,22 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { journalExtras } from "./journal-fixture.js";
 import request from "supertest";
 import {
+  preferencesSchema,
+  walkSchema,
   validateJournal,
   notesSchema,
   missionsSchema,
   type Note,
 } from "../shared/schema.js";
-import { journalMarkdown } from "../shared/export.js";
+import { journalMarkdown, followUpMissions } from "../shared/export.js";
 import { createApp } from "../server/app.js";
 import {
   GemmaAdapter,
   providerRequest,
   journalPrompt,
+  missionPrompt,
   type Config,
 } from "../server/providers.js";
 const id = "00000000-0000-4000-8000-000000000001";
@@ -38,6 +42,7 @@ const config: Config = {
   audioModel: "whisper-large-v3-turbo",
 };
 const journal = () => ({
+  ...journalExtras([id]),
   title: "Field notes",
   observations: [{ sourceNoteIds: [id], quote: notes[0].text }],
   interpretations: [],
@@ -52,6 +57,96 @@ test("accepts grounded exact quotes and preserves uncertain words", () =>
     validateJournal(journal(), notes).observations[0].quote,
     notes[0].text,
   ));
+
+test("everyday settings/interests and old nature preferences are supported", () => {
+  assert.ok(
+    preferencesSchema.safeParse({
+      duration: 10,
+      setting: "Market",
+      interests: [
+        "People & routines",
+        "Buildings & objects",
+        "Small surprises",
+      ],
+    }).success,
+  );
+  assert.ok(preferencesSchema.safeParse(preferences).success);
+  assert.match(
+    missionPrompt,
+    /at least two missions must explore non-nature subjects/,
+  );
+  assert.match(missionPrompt, /never follow, stare at, photograph/);
+});
+
+test("new sections validate all citations and reject duplicate follow-ups", () => {
+  for (const section of ["reflections", "nextMissions"] as const) {
+    const value = journal();
+    value[section][0].sourceNoteIds = ["00000000-0000-4000-8000-000000000009"];
+    assert.throws(() => validateJournal(value, notes), /unknown/);
+  }
+  const value = journal();
+  value.nextMissions[1].instruction = value.nextMissions[0].instruction;
+  assert.throws(() => validateJournal(value, notes), /different instructions/);
+});
+
+test("old journals still load while new exports retain reflections and three choices", () => {
+  const { reflections, nextMissions, ...legacy } = journal();
+  const walk = {
+    id,
+    createdAt: "2026-10-25T00:00:00.000Z",
+    preferences,
+    missions: Array.from({ length: 3 }, (_, i) => ({
+      title: `Invitation ${i}`,
+      instruction: "Notice an ordinary object.",
+    })),
+    notes,
+    journal: legacy,
+    mode: "live" as const,
+    model: "test-gemma",
+  };
+  walkSchema.parse(walk);
+  assert.equal(followUpMissions(validateJournal(legacy, notes)).length, 1);
+  const md = journalMarkdown({ ...walk, journal: journal() });
+  assert.ok(md.includes(notes[0].text));
+  for (const item of reflections) assert.ok(md.includes(item.text));
+  for (const item of nextMissions) assert.ok(md.includes(item.instruction));
+  assert.ok(md.includes("## Looking back"));
+});
+
+test("new live journals cannot silently fall back to the old single-next-step format", async () => {
+  const { reflections, nextMissions, ...legacy } = journal();
+  const adapter = new GemmaAdapter(config, async () =>
+    Response.json({
+      choices: [
+        { message: { content: JSON.stringify(legacy) }, finish_reason: "stop" },
+      ],
+    }),
+  );
+  await assert.rejects(() => adapter.journal(preferences, notes), /grounding/);
+});
+test("multiple saved observations cannot produce just one new reflection", async () => {
+  const otherId = "00000000-0000-4000-8000-000000000002";
+  const inputs = [
+    ...notes,
+    {
+      id: otherId,
+      text: "A repainted sign had two different shades, maybe.",
+      kind: "typed" as const,
+    },
+  ];
+  const value = {
+    ...journal(),
+    ...journalExtras([id, otherId]),
+    observations: inputs.map((n) => ({ quote: n.text, sourceNoteIds: [n.id] })),
+  };
+  value.reflections = value.reflections.slice(0, 1);
+  const adapter = new GemmaAdapter(config, async () =>
+    Response.json({
+      choices: [{ message: { content: JSON.stringify(value) } }],
+    }),
+  );
+  await assert.rejects(() => adapter.journal(preferences, inputs), /grounding/);
+});
 test("rejects invalid references in every generated section", () => {
   for (const section of ["observations", "interpretations", "nextMission"]) {
     const j: any = journal();
@@ -148,14 +243,33 @@ test("injection text stays inside serialized data and no executable tool is prov
   assert.equal(payload.tools, undefined);
   assert.match(journalPrompt, /Never invent species/);
 });
-test("retries transient 503 once and accepts recovery", async () => {
+function retryClock() {
+  let elapsed = 0;
+  const delays: number[] = [];
+  return {
+    delays,
+    now: () => elapsed,
+    sleep: async (ms: number) => {
+      delays.push(ms);
+      elapsed += ms;
+    },
+  };
+}
+test("retries transient 503 after five seconds and accepts recovery", async () => {
   let calls = 0;
-  const value = await providerRequest("https://example.test", {}, async () =>
-    ++calls === 1
-      ? new Response("", { status: 503 })
-      : Response.json({ ok: true }),
+  const clock = retryClock();
+  const value = await providerRequest(
+    "https://example.test",
+    {},
+    async () =>
+      ++calls === 1
+        ? new Response("", { status: 503 })
+        : Response.json({ ok: true }),
+    20000,
+    clock,
   );
   assert.equal(calls, 2);
+  assert.deepEqual(clock.delays, [5000]);
   assert.deepEqual(value, { ok: true });
 });
 test("authentication failures are not retried or leaked", async () => {
@@ -170,17 +284,63 @@ test("authentication failures are not retried or leaked", async () => {
   );
   assert.equal(calls, 1);
 });
+
+test("retries respect Retry-After and do not sleep beyond the total budget", async () => {
+  const clock = retryClock();
+  let calls = 0;
+  await providerRequest(
+    "https://example.test",
+    {},
+    async () =>
+      ++calls === 1
+        ? new Response("", { status: 429, headers: { "Retry-After": "7" } })
+        : Response.json({ ok: true }),
+    20000,
+    clock,
+  );
+  assert.deepEqual(clock.delays, [7000]);
+  const budgetClock = retryClock();
+  let limitedCalls = 0;
+  await assert.rejects(
+    () =>
+      providerRequest(
+        "https://example.test",
+        {},
+        async () => {
+          limitedCalls++;
+          return new Response("", {
+            status: 429,
+            headers: { "Retry-After": "60" },
+          });
+        },
+        20000,
+        budgetClock,
+      ),
+    /busy/,
+  );
+  assert.equal(limitedCalls, 1);
+  assert.deepEqual(budgetClock.delays, []);
+});
 test("retries are bounded for persistent rate limits and network failures", async () => {
   for (const network of [true, false]) {
     let calls = 0;
+    const clock = retryClock();
     await assert.rejects(() =>
-      providerRequest("https://example.test", {}, async () => {
-        calls++;
-        if (network) throw new Error("secret private payload");
-        return new Response("", { status: 429 });
-      }),
+      providerRequest(
+        "https://example.test",
+        {},
+        async () => {
+          calls++;
+          if (network) throw new Error("secret private payload");
+          return new Response("", { status: 429 });
+        },
+        20000,
+        clock,
+      ),
     );
-    assert.equal(calls, 2);
+    assert.equal(calls, 9);
+    assert.ok(clock.now() < 45000);
+    assert.ok(clock.delays.every((ms) => ms >= 5000));
   }
 });
 test("actual timeout aborts fetch and remains bounded", async () => {
@@ -204,6 +364,7 @@ test("actual timeout aborts fetch and remains bounded", async () => {
           });
         },
         5,
+        { maxAttempts: 2, retryDelayMs: 1, totalTimeoutMs: 1000 },
       ),
     /timed out/,
   );

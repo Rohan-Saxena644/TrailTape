@@ -1,6 +1,6 @@
 import type { NextConfig } from "next";
 const config: NextConfig = {
-  // Two bounded 20-second provider attempts can outlast Next's 30-second default.
+  // The provider's 45-second retry budget must finish before the proxy deadline.
   experimental: { proxyTimeout: 50000 },
   async rewrites() {
     return process.env.NODE_ENV === "development"
